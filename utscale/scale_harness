@@ -17,10 +17,13 @@ class grid_scale_test(unittest.TestCase):
         sys.stdout.write("Restoring pool config from %s:\n" % (self.snapshot))
         subprocess.call(["condor_configure_pool", "--load-snapshot", self.snapshot])        
 
+
+class grid_scale_test_micro(grid_scale_test):
     def test1(self):
         # this unit test should pass
         sys.stdout.write("sleeping...\n")
         time.sleep(10)
+        
 
 if __name__ == "__main__":
     # this automatically extracts test methods of form 'test*' and runs them
