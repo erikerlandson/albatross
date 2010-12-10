@@ -1,0 +1,27 @@
+#!/usr/bin/python
+
+import sys, os, os.path, string, glob, math
+import random
+import time
+import tempfile
+import subprocess
+import unittest
+
+class grid_scale_test(unittest.TestCase):
+    def setUp(self):
+        self.snapshot = "grid_scale_test_snapshot_%s" % (time.time())
+        sys.stdout.write("Snapshotting current pool config to %s:\n" % (self.snapshot))
+        subprocess.call(["condor_configure_pool", "--take-snapshot", self.snapshot])
+
+    def tearDown(self):
+        sys.stdout.write("Restoring pool config from %s:\n" % (self.snapshot))
+        subprocess.call(["condor_configure_pool", "--load-snapshot", self.snapshot])        
+
+    def test1(self):
+        # this unit test should pass
+        sys.stdout.write("sleeping...\n")
+        time.sleep(10)
+
+if __name__ == "__main__":
+    # this automatically extracts test methods of form 'test*' and runs them
+    unittest.main()
