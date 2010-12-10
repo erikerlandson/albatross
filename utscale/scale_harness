@@ -32,7 +32,57 @@ class grid_scale_test_micro(grid_scale_test):
         
     def test1(self):
         # this unit test should pass
-        sys.stdout.write("sleeping...\n")
+        sys.stdout.write("micro scale test: sleeping...\n")
+        time.sleep(10)
+
+
+# small scale test
+class grid_scale_test_small(grid_scale_test):
+    def setUp(self):
+        grid_scale_test.setUp(self)
+        # class specific setup goes after parent class
+
+    def tearDown(self):
+        # class specific teardown goes before parent class
+        grid_scale_test.tearDown(self)
+        
+    def test1(self):
+        # this unit test should pass
+        sys.stdout.write("small scale test: sleeping...\n")
+        time.sleep(10)
+
+
+
+# medium scale test
+class grid_scale_test_medium(grid_scale_test):
+    def setUp(self):
+        grid_scale_test.setUp(self)
+        # class specific setup goes after parent class
+
+    def tearDown(self):
+        # class specific teardown goes before parent class
+        grid_scale_test.tearDown(self)
+        
+    def test1(self):
+        # this unit test should pass
+        sys.stdout.write("medium scale test: sleeping...\n")
+        time.sleep(10)
+
+
+
+# large scale test
+class grid_scale_test_large(grid_scale_test):
+    def setUp(self):
+        grid_scale_test.setUp(self)
+        # class specific setup goes after parent class
+
+    def tearDown(self):
+        # class specific teardown goes before parent class
+        grid_scale_test.tearDown(self)
+        
+    def test1(self):
+        # this unit test should pass
+        sys.stdout.write("large scale test: sleeping...\n")
         time.sleep(10)
 
 
