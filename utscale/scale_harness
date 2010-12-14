@@ -116,6 +116,29 @@ class grid_scale_test(unittest.TestCase):
         self.session.delBroker(self.broker)
 
 
+    def assert_group_features(self, feature_names, group_names):
+        # ensure these actually exist
+        for grp in group_names:
+            if not grp in self.group_names:
+                sys.stdout.write("Adding group %s to store:\n" % (grp))
+                result = self.config_store.addExplicitGroup(grp)
+                if result.status != 0:
+                    sys.stderr.write("Failed to create group %s: (%d, %s)\n" % (grp, result.status, result.text))
+                    raise WallabyStoreError(result.text)
+
+        # In principle, could automatically install features if they aren't found
+        for feat in feature_names:
+            if not feat in self.feat_names: raise Exception("Feature %s not in config store" % (feat))
+
+        # apply feature list to group
+        for name in group_names:
+            group_obj = WallabyHelpers.get_group(self.session, self.config_store, name)
+            result = group_obj.modifyFeatures('replace', feature_names, {})
+            if result.status != 0:
+                sys.stderr.write("Failed to set features for %s: (%d, %s)\n" % (name, result.status, result.text))
+                raise WallabyStoreError(result.text)
+
+
     def assert_node_features(self, feature_names, node_names):
         # In principle, could automatically install features if they aren't found
         for feat in feature_names:
@@ -132,21 +155,17 @@ class grid_scale_test(unittest.TestCase):
                 raise WallabyStoreError(result.text)
 
 
-    def assert_group_features(self, feature_names, group_names):
-        # In principle, could automatically install features if they aren't found
-        for feat in feature_names:
-            if not feat in self.feat_names: raise Exception("Feature %s not in config store" % (feat))
-
-        # apply feature list to group
-        for name in group_names:
-            group_obj = WallabyHelpers.get_group(self.session, self.config_store, name)
-            result = group_obj.modifyFeatures('replace', feature_names, {})
+    def assert_node_groups(self, group_names, node_names):
+        # apply the groups to the nodes
+        for name in node_names:
+            node_obj = WallabyHelpers.get_node(self.session, self.config_store, name)
+            result = node_obj.modifyMemberships('replace', group_names, {})
             if result.status != 0:
-                sys.stderr.write("Failed to set features for %s: (%d, %s)\n" % (name, result.status, result.text))
+                sys.stderr.write("Failed to set groups for %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
 
 
-    def clear_groups(self, node_names):
+    def clear_nodes(self, node_names):
         for name in node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, name)
             result = node_obj.modifyMemberships('replace', [], {})
@@ -154,23 +173,16 @@ class grid_scale_test(unittest.TestCase):
                 sys.stderr.write("Failed to clear groups from %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
 
-
-    def assert_node_groups(self, group_names, node_names):
-        # ensure these actually exist
-        for grp in group_names:
-            if not grp in self.group_names:
-                sys.stdout.write("Adding group %s to store:\n" % (grp))
-                result = self.config_store.addExplicitGroup(grp)
-                if result.status != 0:
-                    sys.stderr.write("Failed to create group %s: (%d, %s)\n" % (grp, result.status, result.text))
-                    raise WallabyStoreError(result.text)
-
-        # apply the groups to the nodes
-        for name in node_names:
-            node_obj = WallabyHelpers.get_node(self.session, self.config_store, name)
-            result = node_obj.modifyMemberships('replace', group_names, {})
+            group_name = WallabyHelpers.get_id_group_name(node_obj, self.session)
+            group_obj = WallabyHelpers.get_group(self.session, self.config_store, group_name)
+            result = group_obj.modifyFeatures('replace', [], {})
             if result.status != 0:
-                sys.stderr.write("Failed to set groups for %s: (%d, %s)\n" % (name, result.status, result.text))
+                sys.stderr.write("Failed to clear features from %s: (%d, %s)\n" % (name, result.status, result.text))
+                raise WallabyStoreError(result.text)
+
+            result = group_obj.modifyParams('replace', {}, {})
+            if result.status != 0:
+                sys.stderr.write("Failed to clear params from %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
 
 
@@ -184,11 +196,15 @@ class grid_scale_test_micro(grid_scale_test):
         target_node = self.node_names[0]
         sys.stdout.write("Target for test is: %s\n" % (target_node))
 
+        # define features on the given groups
+        self.assert_group_features(['GridScaleTestMicro'], ['GridScaleTestMicro'])
+
+        # Make sure all config is cleared from nodes
+        self.clear_nodes([target_node])
+
         # define groups on the given nodes
         self.assert_node_groups(['GridScaleTestMicro'], [target_node])
 
-        # define features on the given groups
-        self.assert_group_features(['GridScaleTestMicro'], ['GridScaleTestMicro'])
 
 
     def tearDown(self):
