@@ -1,0 +1,5 @@
+universe = vanilla
+executable = /bin/sleep
+arguments = 10m
+requirements = (WallabyGroups == "GridScaleTestMicro")
+queue
