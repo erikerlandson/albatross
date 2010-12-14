@@ -6,34 +6,155 @@ import time
 import tempfile
 import subprocess
 import unittest
+import argparse
+
+from wallabyclient.exceptions import *
+from wallabyclient import WallabyHelpers, WallabyTypes
+from qmf.console import Session
+
+
+class grid_scale_test_params:
+    def __init__(self):
+        self.broker_addr = '127.0.0.1'
+        self.port = 5672
+        self.passwd = ''
+        self.username = ''
+        self.mechanisms = 'ANONYMOUS PLAIN GSSAPI'
+        self.supported_api_versions = {20100804:0, 20100915:0, 20101031:2}
+        self.package = 'com.redhat.grid.config'
+
+
+# A structure to provide params to unit tests
+params = grid_scale_test_params()
 
 
 # A base class for our unit tests -- defines snapshot/restore for the pool
 class grid_scale_test(unittest.TestCase):
+    def connect_to_wallaby_store(self):
+        # To do: I wanted to default this in a constructor, but need to figure out what PyUnit
+        # expects for constructor of unittest.TestCase.
+        if not self.__dict__.has_key('params'):
+            # Get it from global variable
+            self.params = params
+
+        # set up session for wallaby
+        self.session = Session()
+
+        if self.params.username != '' and self.params.passwd != '':
+            broker_str = '%s/%s@%s:%d' % (self.params.username, self.params.passwd, self.params.broker_addr, self.params.port)
+        elif self.params.username != '':
+            broker_str = '%s@%s:%d' % (self.params.username, self.params.broker_addr, self.params.port)
+        else:
+            broker_str = '%s:%d' % (self.params.broker_addr, self.params.port)
+
+        sys.stdout.write("Connecting to broker %s:\n" % (broker_str))
+
+        try:
+            self.broker = self.session.addBroker('amqp://%s' % broker_str, mechanisms=self.params.mechanisms)
+        except:
+            sys.stderr.write('Unable to connect to broker "%s"\n' % broker_str)
+            raise
+
+        # Retrieve the config store object
+        sys.stdout.write("Connecting to wallaby store:\n")
+        try:
+            (self.store_agent, self.config_store) = WallabyHelpers.get_store_objs(self.session)
+        except WallabyStoreError, error:
+            sys.stderr.write('Error: %s\n' % error.error_str)
+            self.session.delBroker(self.broker)
+            raise
+
+        # Check API version number
+        try:
+            WallabyHelpers.verify_store_api(self.config_store, self.params.supported_api_versions)
+        except WallabyUnsupportedAPI, error:
+            if error.minor == 0:
+                store_api_version = error.major
+            else:
+                store_api_version = '%s.%s' % (error.major, error.minor)
+            sys.stderr.write('The store is using an API version that is not supported (%s)\n' % store_api_version)
+            self.session.delBroker(self.broker)
+            raise
+
+
     def setUp(self):
+        self.connect_to_wallaby_store()
+
+        try:
+            sys.stdout.write("Obtaining nodes from config store:\n")
+            self.node_list = self.store_agent.getObjects(_class='Node', _package=self.params.package)
+            sys.stdout.write("Obtaining features from config store:\n")
+            self.feat_list = self.store_agent.getObjects(_class='Feature', _package=self.params.package)
+        except:
+            sys.stderr.write("Failed to obtain data from current config store\n")
+            raise
+
+        self.node_names = [x.name for x in self.node_list]
+        self.feat_names = [x.name for x in self.feat_list]
+
         self.snapshot = "grid_scale_test_snapshot_%s" % (time.time())
         sys.stdout.write("Snapshotting current pool config to %s:\n" % (self.snapshot))
-        subprocess.call(["condor_configure_pool", "--take-snapshot", self.snapshot])
+        result = self.config_store.makeSnapshot(self.snapshot)
+        if result.status != 0:
+            sys.stderr.write("Failed to snapshot current pool: (%d, %s)\n" % (result.status, result.text))
+            raise WallabyStoreError(result.text)
+        sys.stdout.write("Finished config snapshot %s\n" % (self.snapshot))
+
 
     def tearDown(self):
         sys.stdout.write("Restoring pool config from %s:\n" % (self.snapshot))
-        subprocess.call(["condor_configure_pool", "--load-snapshot", self.snapshot])        
+        result = self.config_store.loadSnapshot(self.snapshot)
+        if result.status != 0:
+            sys.stderr.write("Failed to snapshot current pool: (%d, %s)\n" % (result.status, result.text))
+            raise WallabyStoreError(result.text)
+        sys.stdout.write("Finished restoring snapshot %s\n" % (self.snapshot))
+        self.session.delBroker(self.broker)
 
+
+    def assert_feature(self, feature_name, node_name):
+        # In principle, could automatically install features if they aren't found
+        if not feature_name in self.feat_names: raise Exception("Feature %s not in config store" % (feature_name))
+
+        # Check that feature is applied to the node
+        node_obj = WallabyHelpers.get_node(self.session, self.config_store, node_name)
+        node_features = WallabyHelpers.get_node_features(node_obj, self.session, self.config_store)
+
+        if feature_name in node_features:
+            sys.stdout.write('Node %s has feature %s\n' % (node_name, feature_name))
+        else:
+            sys.stdout.write('Applying feature %s to node %s\n' % (feature_name, node_name))
+            group_name = WallabyHelpers.get_id_group_name(node_obj, self.session)
+            group_obj = WallabyHelpers.get_group(self.session, self.config_store, group_name)
+            result = group_obj.modifyFeatures('add', [feature_name], {})
+
+        # Sanity check our assertion
+        node_features = WallabyHelpers.get_node_features(node_obj, self.session, self.config_store)
+        if not feature_name in node_features: raise Exception("Node %s missing %s!" % (node_name, feature_name))
+        
 
 # A prototype "micro" scale test, to run on a personal condor
 class grid_scale_test_micro(grid_scale_test):
     def setUp(self):
+        # parent class setup first:
         grid_scale_test.setUp(self)
-        # class specific setup goes after parent class
+
+        if len(self.node_names) < 1: raise Exception("Require at least one node in pool")
+        target_node = self.node_names[0]
+        sys.stdout.write("Target for test is: %s\n" % (target_node))
+
+        self.assert_feature('GridScaleTestMicro', target_node)
+
 
     def tearDown(self):
         # class specific teardown goes before parent class
         grid_scale_test.tearDown(self)
-        
+
+
     def test1(self):
         # this unit test should pass
         sys.stdout.write("micro scale test: sleeping...\n")
         time.sleep(10)
+
 
 
 # small scale test
@@ -86,13 +207,28 @@ class grid_scale_test_large(grid_scale_test):
         time.sleep(10)
 
 
-
 if __name__ == "__main__":
+    # Intercept harness-specific args from command line
+    ha_parser = argparse.ArgumentParser()
+    ha_parser.add_argument('-b', '--broker', dest='broker_addr', default='127.0.0.1')
+    ha_parser.add_argument('-o', '--port', type=int, dest='port', default=5672)
+    ha_parser.add_argument('-P', '--password', dest='passwd', default='')
+    ha_parser.add_argument('-U', '--user', dest='username', default='')
+    ha_parser.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI')
+
+    # This parses command line args and loads defined args into object 'params'
+    # Any remaining args are passed into 'remainder'
+    remainder = ha_parser.parse_known_args(sys.argv[1:], namespace=params)
+
+    # Pass any unparsed arguments on to PyUnit's machinery
+    sys.argv = sys.argv[:1]
+    sys.argv.extend(remainder[1])
+
     # Tentatively, I don't think it's a good idea to run all test cases 
     # for our purposes, so if no args are given I'll output usage
     if len(sys.argv) < 2:
         sys.stderr.write("*** The 'no-argument' default (run all tests) has been disabled for this test harness:\n\n")
-        sys.argv.append("-h")        
+        sys.argv.append("-h")
 
     # This provides nice default command-line facilities for running
     # any unit tests defined in this module/command.  To see the usage,
