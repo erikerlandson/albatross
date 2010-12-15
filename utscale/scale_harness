@@ -229,6 +229,49 @@ class grid_scale_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add param")
 
 
+    def poll_for_slots(self, nslots, group=None, interval=30, maxtime=600):
+        if group == None:
+            status_cmd = "condor_status -subsystem startd -format \"%s\\n\" Name | wc -l"
+        else:
+            status_cmd = "condor_status -subsystem startd -format \"%%s\\n\" Name -constraint 'stringListMember(\"%s\", WallabyGroups)' | wc -l" % (group)
+        t0 = time.time()
+        while (True):
+            elapsed = time.time() - t0
+            if (elapsed > maxtime): raise Exception("Exceeded max polling time")
+            sys.stdout.write("Waiting for %d slots %sto spool up (%d seconds elapsed):\n" % (nslots, "" if group==None else "from group %s "%(group), int(elapsed)))
+            time.sleep(interval)
+            try:
+                res = subprocess.Popen(["/bin/sh", "-c", status_cmd], stdout=subprocess.PIPE).communicate()[0]
+                res = res.strip()
+                n = int(res)
+            except:
+                n = 0
+            # stop waiting if we see we have the desired number of configured startds
+            if n >= nslots: break
+
+
+    def poll_for_empty_job_queue(self, cluster=None, tag=None, tagvar="GridScaleTestTag", interval=30, maxtime=600):
+        if cluster != None:
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'| wc -l" % (cluster)
+        elif tag != None:
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'| wc -l" % (tagvar, tag)
+        else:
+            q_cmd = "condor_q -format \"%s\\n\" GlobalJobId | wc -l"
+        t0 = time.time()
+        while (True):
+            elapsed = time.time() - t0
+            if (elapsed > maxtime): raise Exception("Exceeded max polling time")
+            sys.stdout.write("Waiting for job que to clear%s (%d seconds elapsed):\n" % ("" if cluster == None else " for cluster %d"%(cluster), elapsed))
+            time.sleep(interval)
+            try:
+                res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE).communicate()[0]
+                n = int(res)
+            except:
+                n = 999
+            # stop waiting when que is clear of specified jobs
+            if n <= 0: break
+
+
 # A prototype "micro" scale test, to run on a personal condor
 class grid_scale_test_micro(grid_scale_test):
     def setUp(self):
@@ -261,34 +304,14 @@ class grid_scale_test_micro(grid_scale_test):
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
         # before we leave set-up, make sure activation and restart are complete
-        while (True):
-            sys.stdout.write("Waiting for reactivated nodes to spool up...\n")
-            time.sleep(15)
-            try:
-                res = subprocess.Popen(["/bin/sh", "-c", "condor_status -l -subsystem startd | grep GridScaleTestMicro | wc -l"], stdout=subprocess.PIPE).communicate()[0]
-                res = res.strip()
-                sys.stdout.write("res= \"%s\"\n" % (res))
-                n = int(res)
-            except:
-                n = 0
-            # stop waiting if we see we have the desired number of configured startds
-            if n >= 1: break
+        self.poll_for_slots(1, group='GridScaleTestMicro', interval=10, maxtime=120)
 
 
     def tearDown(self):
         # Don't wait for jobs to complete, just nuke them
-        subprocess.call(["condor_rm", "-all"])
-        while (True):
-            sys.stdout.write("Waiting for job que to clear...\n")
-            time.sleep(15)
-            try:
-                res = subprocess.Popen(["/bin/sh", "-c", "condor_q | tail -1"], stdout=subprocess.PIPE).communicate()[0]
-                resf = res.split()
-                n = int(resf[0])
-            except:
-                n = 999
-            # stop waiting when que is clear
-            if n <= 0: break
+        subprocess.call(["condor_rm", "-constraint", "GridScaleTestTag==\"Micro\""])
+        # Do wait for job queue to empty before restoration and reactivation
+        self.poll_for_empty_job_queue(tag="Micro", interval=10, maxtime=120)
 
         # call base-class teardown after our class-specific work
         grid_scale_test.tearDown(self)
@@ -300,7 +323,7 @@ class grid_scale_test_micro(grid_scale_test):
         sys.stdout.write("Testing submission rate over %d individual submits:\n" % (n))
         t0 = time.time()
         for k in xrange(n):
-            (retval, out, err) = run_cmd("condor_submit micro_test.submit")
+            subprocess.Popen("condor_submit", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate(input='universe = vanilla\nexecutable = /bin/sleep\narguments = 10m\nrequirements = (WallabyGroups == "GridScaleTestMicro")\n+GridScaleTestTag="Micro"\nqueue\n')
         elapsed = time.time() - t0
         sys.stdout.write("%f seconds for %d submits -> %f submissions / sec\n" % (elapsed, n, float(n)/float(elapsed)))
         
