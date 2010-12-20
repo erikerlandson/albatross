@@ -291,6 +291,19 @@ class grid_scale_test(unittest.TestCase):
             if n <= 0: break
 
 
+    def list_nodes(self, with_feats=None, without_feats=None):
+        r = []
+        for node in self.node_names:
+            node_obj = WallabyHelpers.get_node(self.session, self.config_store, node)
+            nodefeats = []
+            if (with_feats != None) or (without_feats != None):
+                nodefeats = WallabyHelpers.get_node_features(node_obj, self.session, self.config_store)
+            if (with_feats != None) and (False in [x in nodefeats for x in with_feats]): continue
+            if (without_feats != None) and (True in [x in nodefeats for x in without_feats]): continue
+            r += [node]
+        return r
+
+
 # A prototype "micro" scale test, to run on a personal condor
 class grid_scale_test_micro(grid_scale_test):
     def setUp(self):
@@ -365,9 +378,11 @@ class grid_scale_test_small(grid_scale_test):
         
     def test1(self):
         # this unit test should pass
-        sys.stdout.write("small scale test: sleeping...\n")
-        time.sleep(10)
-
+        nodes1 = self.list_nodes(with_feats=['ExecuteNode'])
+        nodes2 = self.list_nodes(without_feats=['FakeFeature'])
+        nodes3 = self.list_nodes(with_feats=['ExecuteNode', 'Scheduler'], without_feats=['FakeFeature'])
+        nodes4 = self.list_nodes(with_feats=['ExecuteNode'], without_feats=['CentralManager','Negotiator','Collector'])
+        sys.stdout.write("%s\n%s\n%s\n%s\n" % (nodes1, nodes2, nodes3, nodes4))
 
 
 # medium scale test
