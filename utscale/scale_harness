@@ -3,6 +3,7 @@
 import sys, os, os.path, string, glob, math
 import random
 import time
+import datetime
 import tempfile
 import subprocess
 import unittest
@@ -78,54 +79,73 @@ class grid_scale_test(unittest.TestCase):
             self.session.delBroker(self.broker)
             raise
 
+    def take_snapshot(self, name):
+        sys.stdout.write("Snapshotting current pool config to %s:\n" % (name))
+        result = self.config_store.makeSnapshot(name)
+        if result.status != 0:
+            sys.stderr.write("Failed to snapshot current pool to %s: (%d, %s)\n" % (name, result.status, result.text))
+            raise WallabyStoreError(result.text)
+        sys.stdout.write("Finished config snapshot %s\n" % (name))
+
+    def load_snapshot(self, name):
+        sys.stdout.write("Restoring pool config from %s:\n" % (name))
+        result = self.config_store.loadSnapshot(name)
+        if result.status != 0:
+            sys.stderr.write("Failed to restore from %s: (%d, %s)\n" % (name, result.status, result.text))
+            raise WallabyStoreError(result.text)
+        sys.stdout.write("Finished restoring snapshot %s\n" % (name))
+
 
     def setUp(self):
+        self.devnull = open(os.devnull, 'rw')
+
         self.connect_to_wallaby_store()
 
         try:
             sys.stdout.write("Obtaining nodes from config store:\n")
-            self.node_list = self.store_agent.getObjects(_class='Node', _package=self.params.package)
+            node_list = self.store_agent.getObjects(_class='Node', _package=self.params.package)
 
             sys.stdout.write("Obtaining groups from config store:\n")
-            self.group_list = self.store_agent.getObjects(_class='Group', _package=self.params.package)
+            group_list = self.store_agent.getObjects(_class='Group', _package=self.params.package)
 
             sys.stdout.write("Obtaining features from config store:\n")
-            self.feat_list = self.store_agent.getObjects(_class='Feature', _package=self.params.package)
+            feat_list = self.store_agent.getObjects(_class='Feature', _package=self.params.package)
 
             sys.stdout.write("Obtaining params from config store:\n")
-            self.param_list = self.store_agent.getObjects(_class='Parameter', _package=self.params.package)
+            param_list = self.store_agent.getObjects(_class='Parameter', _package=self.params.package)
         except:
             sys.stderr.write("Failed to obtain data from current config store\n")
             raise
 
-        self.node_names = [x.name for x in self.node_list]
-        self.group_names = [x.name for x in self.group_list]
-        self.feat_names = [x.name for x in self.feat_list]
-        self.param_names = [x.name for x in self.param_list]
+        self.node_names = [x.name for x in node_list]
+        self.group_names = [x.name for x in group_list]
+        self.feat_names = [x.name for x in feat_list]
+        self.param_names = [x.name for x in param_list]
 
-        self.snapshot = "grid_scale_test_snapshot_%s" % (time.time())
-        sys.stdout.write("Snapshotting current pool config to %s:\n" % (self.snapshot))
-        result = self.config_store.makeSnapshot(self.snapshot)
-        if result.status != 0:
-            sys.stderr.write("Failed to snapshot current pool: (%d, %s)\n" % (result.status, result.text))
-            raise WallabyStoreError(result.text)
-        sys.stdout.write("Finished config snapshot %s\n" % (self.snapshot))
+        self.testdate = time.strftime("%Y/%m/%d_%H:%M:%S")
+        self.snapshot = "grid_scale_%s_pretest" % (self.testdate)
+        self.take_snapshot(self.snapshot)
 
 
     def tearDown(self):
-        sys.stdout.write("Restoring pool config from %s:\n" % (self.snapshot))
-        result = self.config_store.loadSnapshot(self.snapshot)
-        if result.status != 0:
-            sys.stderr.write("Failed to snapshot current pool: (%d, %s)\n" % (result.status, result.text))
-            raise WallabyStoreError(result.text)
-        sys.stdout.write("Finished restoring snapshot %s\n" % (self.snapshot))
+        self.load_snapshot(self.snapshot)
 
         # Activate restored config
         result = self.config_store.activateConfiguration(_timeout=600)
         if result.status != 0:
-            raise Exception("Failed to activate restored configuration %s: (%s, %s)" % (self.snapshot, result.status, result.text))
+            sys.stderr.write("Failed to activate restored configuration %s: (%s, %s)\n" % (self.snapshot, result.status, result.text))
+            raise Exception(result.text)
 
         self.session.delBroker(self.broker)
+
+
+    def assert_feature(self, feature_name):
+        if not feature_name in self.feat_names:
+            result = self.config_store.addFeature(feature_name)
+            if result.status != 0:
+                sys.stderr.write("Failed to add feature %s: (%s, %s)\n" % (feature_name, result.status, result.text))
+                raise WallabyStoreError(result.text)
+            self.feat_names += [feature_name]
 
 
     def assert_group_features(self, feature_names, group_names):
@@ -152,7 +172,6 @@ class grid_scale_test(unittest.TestCase):
 
 
     def assert_node_features(self, feature_names, node_names):
-        # In principle, could automatically install features if they aren't found
         for feat in feature_names:
             if not feature_name in self.feat_names: raise Exception("Feature %s not in config store" % (feat))
 
@@ -241,7 +260,7 @@ class grid_scale_test(unittest.TestCase):
             sys.stdout.write("Waiting for %d slots %sto spool up (%d seconds elapsed):\n" % (nslots, "" if group==None else "from group %s "%(group), int(elapsed)))
             time.sleep(interval)
             try:
-                res = subprocess.Popen(["/bin/sh", "-c", status_cmd], stdout=subprocess.PIPE).communicate()[0]
+                res = subprocess.Popen(["/bin/sh", "-c", status_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
                 res = res.strip()
                 n = int(res)
             except:
@@ -264,7 +283,7 @@ class grid_scale_test(unittest.TestCase):
             sys.stdout.write("Waiting for job que to clear%s (%d seconds elapsed):\n" % ("" if cluster == None else " for cluster %d"%(cluster), elapsed))
             time.sleep(interval)
             try:
-                res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE).communicate()[0]
+                res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
                 n = int(res)
             except:
                 n = 999
@@ -282,6 +301,8 @@ class grid_scale_test_micro(grid_scale_test):
         target_node = self.node_names[0]
         sys.stdout.write("Target for test is: %s\n" % (target_node))
 
+        self.assert_feature('GridScaleTestMicro')
+
         # define features on the given groups
         self.assert_group_features(['GridScaleTestMicro'], ['GridScaleTestMicro'])
 
@@ -298,6 +319,9 @@ class grid_scale_test_micro(grid_scale_test):
         # everything above
         self.assert_node_groups(['GridScaleTestMicro'], [target_node])
 
+        # snapshot this test config
+        self.take_snapshot("grid_scale_%s_micro_test" % (self.testdate))
+
         # Activate new config
         result = self.config_store.activateConfiguration(_timeout=600)
         if result.status != 0:
@@ -309,7 +333,7 @@ class grid_scale_test_micro(grid_scale_test):
 
     def tearDown(self):
         # Don't wait for jobs to complete, just nuke them
-        subprocess.call(["condor_rm", "-constraint", "GridScaleTestTag==\"Micro\""])
+        subprocess.call(["condor_rm", "-constraint", "GridScaleTestTag==\"Micro\""], stdout=self.devnull, stderr=self.devnull)
         # Do wait for job queue to empty before restoration and reactivation
         self.poll_for_empty_job_queue(tag="Micro", interval=10, maxtime=120)
 
@@ -323,7 +347,7 @@ class grid_scale_test_micro(grid_scale_test):
         sys.stdout.write("Testing submission rate over %d individual submits:\n" % (n))
         t0 = time.time()
         for k in xrange(n):
-            subprocess.Popen("condor_submit", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate(input='universe = vanilla\nexecutable = /bin/sleep\narguments = 10m\nrequirements = (WallabyGroups == "GridScaleTestMicro")\n+GridScaleTestTag="Micro"\nqueue\n')
+            subprocess.Popen("condor_submit", stdin=subprocess.PIPE, stdout=self.devnull, stderr=self.devnull).communicate(input='universe = vanilla\nexecutable = /bin/sleep\narguments = 10m\nrequirements = (WallabyGroups == "GridScaleTestMicro")\n+GridScaleTestTag="Micro"\nqueue\n')
         elapsed = time.time() - t0
         sys.stdout.write("%f seconds for %d submits -> %f submissions / sec\n" % (elapsed, n, float(n)/float(elapsed)))
         
