@@ -426,22 +426,17 @@ if __name__ == "__main__":
     ha_parser.add_argument('-P', '--password', dest='passwd', default='')
     ha_parser.add_argument('-U', '--user', dest='username', default='')
     ha_parser.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI')
+    # Tentatively, I don't think it's a good idea to run all test cases
+    # So I'm making this a required positional param
+    ha_parser.add_argument('test_name')
 
     # This parses command line args and loads defined args into object 'params'
-    # Any remaining args are passed into 'remainder'
-    remainder = ha_parser.parse_known_args(sys.argv[1:], namespace=params)
+    ha_parser.parse_args(sys.argv[1:], namespace=params)
 
-    # Pass any unparsed arguments on to PyUnit's machinery
+    # Pass requested test name to PyUnit
     sys.argv = sys.argv[:1]
-    sys.argv.extend(remainder[1])
-
-    # Tentatively, I don't think it's a good idea to run all test cases 
-    # for our purposes, so if no args are given I'll output usage
-    if len(sys.argv) < 2:
-        sys.stderr.write("*** The 'no-argument' default (run all tests) has been disabled for this test harness:\n\n")
-        sys.argv.append("-h")
+    sys.argv += [params.test_name]
 
     # This provides nice default command-line facilities for running
-    # any unit tests defined in this module/command.  To see the usage,
-    # run this file with '-h' or '--help' option.
+    # any unit tests defined in this module/command.
     unittest.main()
