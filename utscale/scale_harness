@@ -23,7 +23,7 @@ class grid_scale_test_params:
         self.passwd = ''
         self.username = ''
         self.mechanisms = 'ANONYMOUS PLAIN GSSAPI'
-        self.supported_api_versions = {20100804:0, 20100915:0, 20101031:2}
+        self.supported_api_versions = {20100804:0, 20100915:0, 20101031:1}
         self.package = 'com.redhat.grid.config'
 
 
