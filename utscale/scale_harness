@@ -257,7 +257,9 @@ class grid_scale_test(unittest.TestCase):
         while (True):
             elapsed = time.time() - t0
             if (elapsed > maxtime): raise Exception("Exceeded max polling time")
-            sys.stdout.write("Waiting for %d slots %sto spool up (%d seconds elapsed):\n" % (nslots, "" if group==None else "from group %s "%(group), int(elapsed)))
+            sys.stdout.write("Waiting for %d slots " % (nslots))
+            if group != None: sys.stdout.write("from group %s " % (group))
+            sys.stdout.write("to spool up (%d seconds elapsed):\n" % (int(elapsed)))
             time.sleep(interval)
             try:
                 res = subprocess.Popen(["/bin/sh", "-c", status_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
@@ -280,7 +282,9 @@ class grid_scale_test(unittest.TestCase):
         while (True):
             elapsed = time.time() - t0
             if (elapsed > maxtime): raise Exception("Exceeded max polling time")
-            sys.stdout.write("Waiting for job que to clear%s (%d seconds elapsed):\n" % ("" if cluster == None else " for cluster %d"%(cluster), elapsed))
+            sys.stdout.write("Waiting for job que to clear ")
+            if cluster != None: sys.stdout.write("for cluster %d " % (cluster))
+            sys.stdout.write("(%d seconds elapsed):\n" % (int(elapsed)))
             time.sleep(interval)
             try:
                 res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
