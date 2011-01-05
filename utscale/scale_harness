@@ -382,11 +382,8 @@ class grid_scale_test_small(grid_scale_test):
         
     def test1(self):
         # this unit test should pass
-        nodes1 = self.list_nodes(with_feats=['ExecuteNode'])
-        nodes2 = self.list_nodes(without_feats=['FakeFeature'])
-        nodes3 = self.list_nodes(with_feats=['ExecuteNode', 'Scheduler'], without_feats=['FakeFeature'])
-        nodes4 = self.list_nodes(with_feats=['ExecuteNode'], without_feats=['CentralManager','Negotiator','Collector'])
-        sys.stdout.write("%s\n%s\n%s\n%s\n" % (nodes1, nodes2, nodes3, nodes4))
+        candidate_nodes = self.list_nodes(without_feats=['CentralManager','Negotiator','Collector'])
+        sys.stdout.write("candidate_nodes: %s\n" % (candidate_nodes))
 
 
 # medium scale test
