@@ -97,6 +97,8 @@ class grid_scale_test(unittest.TestCase):
 
 
     def setUp(self):
+        self.setup = False
+
         self.devnull = open(os.devnull, 'rw')
 
         self.connect_to_wallaby_store()
@@ -295,15 +297,23 @@ class grid_scale_test(unittest.TestCase):
             if n <= 0: break
 
 
-    def list_nodes(self, with_feats=None, without_feats=None):
+    def list_nodes(self, with_all_feats=None, without_any_feats=None, with_all_groups=None, without_any_groups=None):
         r = []
         for node in self.node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, node)
+
             nodefeats = []
-            if (with_feats != None) or (without_feats != None):
+            if (with_all_feats != None) or (without_any_feats != None):
                 nodefeats = WallabyHelpers.get_node_features(node_obj, self.session, self.config_store)
-            if (with_feats != None) and (False in [x in nodefeats for x in with_feats]): continue
-            if (without_feats != None) and (True in [x in nodefeats for x in without_feats]): continue
+            if (with_all_feats != None) and (False in [x in nodefeats for x in with_all_feats]): continue
+            if (without_any_feats != None) and (True in [x in nodefeats for x in without_any_feats]): continue
+
+            nodegroups = []
+            if (with_all_groups != None) or (without_any_groups != None):
+                nodegroups = [WallabyHelpers.get_id_group_name(node_obj, self.session)] + node_obj.memberships + ['+++DEFAULT']
+            if (with_all_groups != None) and (False in [x in nodegroups for x in with_all_groups]): continue
+            if (without_any_groups != None) and (True in [x in nodegroups for x in without_any_groups]): continue
+
             r += [node]
         return r
 
@@ -373,19 +383,43 @@ class grid_scale_test_micro(grid_scale_test):
 # small scale test
 class grid_scale_test_small(grid_scale_test):
     def setUp(self):
+        self.setup = False
         grid_scale_test.setUp(self)
+
         # class specific setup goes after parent class
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise
+
+        candidate_nodes = self.list_nodes(with_all_groups=['GridScaleTestNode'], without_any_feats=['CentralManager','Negotiator','Collector'])
+        sys.stdout.write("candidate_nodes: %s\n" % (candidate_nodes))
+
+        self.ntarget = 8
+        if len(candidate_nodes) < self.ntarget:
+            sys.stderr.write("% nodes insufficient for this test\n" % (len(candidate_nodes)))
+            raise
+
+        # just take the first ones on the list
+        self.target_nodes = candidate_nodes[:self.ntarget]
+        sys.stdout.write("target_nodes: %s\n" % (target_nodes))
+
+        # flag that all setup succeeded
+        self.setup = True
+
 
     def tearDown(self):
         # class specific teardown goes before parent class
         grid_scale_test.tearDown(self)
+
+
+    def test_submit_rate(self):
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise
+
+
         
-    def test1(self):
-        # this unit test should pass
-        candidate_nodes = self.list_nodes(without_feats=['CentralManager','Negotiator','Collector'])
-        sys.stdout.write("candidate_nodes: %s\n" % (candidate_nodes))
-
-
+        
 # medium scale test
 class grid_scale_test_medium(grid_scale_test):
     def setUp(self):
