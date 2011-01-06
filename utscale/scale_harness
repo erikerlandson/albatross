@@ -384,24 +384,24 @@ class grid_scale_test_micro(grid_scale_test):
 class grid_scale_test_small(grid_scale_test):
     def setUp(self):
         self.setup = False
-        grid_scale_test.setUp(self)
-
-        # class specific setup goes after parent class
-        if not self.setup:
+        try:
+            grid_scale_test.setUp(self)
+        except:
             sys.stderr.write("setup failed")
             raise
 
+        # class specific setup goes after parent class
         candidate_nodes = self.list_nodes(with_all_groups=['GridScaleTestNode'], without_any_feats=['CentralManager','Negotiator','Collector'])
         sys.stdout.write("candidate_nodes: %s\n" % (candidate_nodes))
 
         self.ntarget = 8
         if len(candidate_nodes) < self.ntarget:
             sys.stderr.write("% nodes insufficient for this test\n" % (len(candidate_nodes)))
-            raise
+            raise Exception()
 
         # just take the first ones on the list
         self.target_nodes = candidate_nodes[:self.ntarget]
-        sys.stdout.write("target_nodes: %s\n" % (target_nodes))
+        sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
 
         # flag that all setup succeeded
         self.setup = True
@@ -415,7 +415,7 @@ class grid_scale_test_small(grid_scale_test):
     def test_submit_rate(self):
         if not self.setup:
             sys.stderr.write("setup failed")
-            raise
+            raise Exception()
 
 
         
