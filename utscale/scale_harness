@@ -453,7 +453,8 @@ class grid_scale_test_small(grid_scale_test):
             raise Exception()
 
         # just take the first ones on the list
-        self.target_nodes = candidate_nodes[:self.ntarget]
+        #self.target_nodes = candidate_nodes[:self.ntarget]
+        self.target_nodes = ['mrg27.lab.bos.redhat.com']
         sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
 
         self.assert_feature('GridScaleTestSmall')
@@ -530,6 +531,70 @@ class grid_scale_test_large(grid_scale_test):
         # this unit test should pass
         sys.stdout.write("large scale test: sleeping...\n")
         time.sleep(10)
+
+
+
+class grid_scale_test_4000(grid_scale_test):
+    def setUp(self):
+        self.setup = False
+        try:
+            grid_scale_test.setUp(self)
+        except:
+            sys.stderr.write("setup failed")
+            raise
+
+        # class specific setup goes after parent class
+        candidate_nodes = self.list_nodes(with_all_groups=['GridScaleTestNode'], without_any_feats=['CentralManager','Negotiator','Collector'])
+
+        self.ntarget = 10
+        if len(candidate_nodes) < self.ntarget:
+            sys.stderr.write("% nodes insufficient for this test\n" % (len(candidate_nodes)))
+            raise Exception()
+
+        # just take the first ones on the list
+        self.target_nodes = candidate_nodes[:self.ntarget]
+        sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
+
+        self.assert_feature('GridScaleTest4000')
+        self.build_execute_feature('GridScaleTest4000Execute', n_startd=50, n_slots=1, n_dynamic=8)
+
+        # define features on the given groups
+        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTest4000', 'GridScaleTest4000Execute'], ['GridScaleTest4000'])
+
+        # This is my subversive technique for ensuring that my target systems restart
+        self.tag_test_feature('GridScaleTest4000', 'GRID_SCALE_TEST_RESTART_TAG')
+
+        # Make sure all config is cleared from nodes
+        self.clear_nodes(self.target_nodes)
+
+        # define groups on the given nodes
+        self.assert_node_groups(['GridScaleTest4000'], self.target_nodes)
+
+        # snapshot this test config
+        self.take_snapshot("grid_scale_%s_4000_test" % (self.testdate))
+
+        # Activate new config
+        result = self.config_store.activateConfiguration(_timeout=600)
+        if result.status != 0:
+            raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
+
+        # before we leave set-up, make sure activation and restart are complete
+        #self.poll_for_slots(self.ntarget*8*8, group='GridScaleTestSmall', interval=30, maxtime=600)
+
+        # flag that all setup succeeded
+        self.setup = True
+
+
+    def tearDown(self):
+        # class specific teardown goes before parent class
+        grid_scale_test.tearDown(self)
+
+
+    def test_dummy(self):
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise Exception()
+
 
 
 if __name__ == "__main__":
