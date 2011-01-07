@@ -25,6 +25,7 @@ class grid_scale_test_params:
         self.mechanisms = 'ANONYMOUS PLAIN GSSAPI'
         self.supported_api_versions = {20100804:0, 20100915:0, 20101031:1}
         self.package = 'com.redhat.grid.config'
+        self.no_restore = False
 
 
 # A structure to provide params to unit tests
@@ -130,13 +131,16 @@ class grid_scale_test(unittest.TestCase):
 
 
     def tearDown(self):
-        self.load_snapshot(self.snapshot)
+        if self.params.no_restore:
+            sys.stdout.write("WARNING: NOT restoring pre-test snapshot %s\n" % (self.snapshot))
+        else:
+            self.load_snapshot(self.snapshot)
 
-        # Activate restored config
-        result = self.config_store.activateConfiguration(_timeout=600)
-        if result.status != 0:
-            sys.stderr.write("Failed to activate restored configuration %s: (%s, %s)\n" % (self.snapshot, result.status, result.text))
-            raise Exception(result.text)
+            # Activate restored config
+            result = self.config_store.activateConfiguration(_timeout=600)
+            if result.status != 0:
+                sys.stderr.write("Failed to activate restored configuration %s: (%s, %s)\n" % (self.snapshot, result.status, result.text))
+                raise Exception(result.text)
 
         self.session.delBroker(self.broker)
 
@@ -318,6 +322,48 @@ class grid_scale_test(unittest.TestCase):
         return r
 
 
+    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, collector_host=None):
+        self.assert_feature(feature_name)
+
+        if collector_host==None: collector_host = self.params.broker
+        sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
+
+        params={}
+        params["USE_PROCD"] = "FALSE"
+        params["COLLECTOR_HOST"] = collector_host
+        params["ALLOW_WRITE"] = "*"
+        params["ALLOW_READ"] = "*"
+        params["SEC_DEFAULT_AUTHENTICATION_METHODS"] = "CLAIMTOBE"
+
+        if n_dynamic > 0:
+            params["SLOT_TYPE_1"] = "cpus=%d"%(n_dynamic)
+            params["SLOT_TYPE_1_PARTITIONABLE"] = "TRUE"
+            params["NUM_SLOTS_TYPE_1"] = "%d"%(n_slots)
+            params["NUM_CPUS"] = "%d"%(n_slots * n_dynamic)
+        else:
+            params["NUM_SLOTS"] = "%d"%(n_slots)
+            params["NUM_CPUS"] = "%d"%(n_slots)
+
+        daemon_list = "MASTER"
+        for s in xrange(n_startd):
+            tag = "ST%03d"%(s)
+            daemon_list += ",STARTD_%s"%(tag)
+            params["STARTD_%s"%(tag)] = "$(STARTD)"
+            params["STARTD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
+            params["STARTD.%s.STARTD_NAME"%(tag)] = "%s"%(tag)
+            params["STARTD.%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.%s-address"%(tag)
+            params["STARTD.%s.STARTD_LOG"%(tag)] = "$(LOG)/%s_Log"%(tag)
+
+        params["DAEMON_LIST"] = daemon_list
+
+        feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
+        result = feat_obj.modifyParams('replace', params, {})
+        if result.status != 0:
+            sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
+            raise WallabyStoreError("Failed to add param")
+
+
+
 # A prototype "micro" scale test, to run on a personal condor
 class grid_scale_test_micro(grid_scale_test):
     def setUp(self):
@@ -392,9 +438,8 @@ class grid_scale_test_small(grid_scale_test):
 
         # class specific setup goes after parent class
         candidate_nodes = self.list_nodes(with_all_groups=['GridScaleTestNode'], without_any_feats=['CentralManager','Negotiator','Collector'])
-        sys.stdout.write("candidate_nodes: %s\n" % (candidate_nodes))
 
-        self.ntarget = 8
+        self.ntarget = 1
         if len(candidate_nodes) < self.ntarget:
             sys.stderr.write("% nodes insufficient for this test\n" % (len(candidate_nodes)))
             raise Exception()
@@ -402,6 +447,32 @@ class grid_scale_test_small(grid_scale_test):
         # just take the first ones on the list
         self.target_nodes = candidate_nodes[:self.ntarget]
         sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
+
+        self.assert_feature('GridScaleTestSmall')
+        self.build_execute_feature('GridScaleTestSmallExecute', n_startd=8, n_slots=8, n_dynamic=0)
+
+        # define features on the given groups
+        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestSmall', 'GridScaleTestSmallExecute'], ['GridScaleTestSmall'])
+
+        # This is my subversive technique for ensuring that my target systems restart
+        self.tag_test_feature('GridScaleTestSmall', 'GRID_SCALE_TEST_RESTART_TAG')
+
+        # Make sure all config is cleared from nodes
+        self.clear_nodes(self.target_nodes)
+
+        # define groups on the given nodes
+        self.assert_node_groups(['GridScaleTestSmall'], self.target_nodes)
+
+        # snapshot this test config
+        self.take_snapshot("grid_scale_%s_small_test" % (self.testdate))
+
+        # Activate new config
+        result = self.config_store.activateConfiguration(_timeout=60)
+        if result.status != 0:
+            raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
+
+        # before we leave set-up, make sure activation and restart are complete
+        self.poll_for_slots(self.ntarget*8*8, group='GridScaleTestSmall', interval=30, maxtime=600)
 
         # flag that all setup succeeded
         self.setup = True
@@ -461,6 +532,7 @@ if __name__ == "__main__":
     ha_parser.add_argument('-P', '--password', dest='passwd', default='')
     ha_parser.add_argument('-U', '--user', dest='username', default='')
     ha_parser.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI')
+    ha_parser.add_argument('--no-restore', dest='no_restore', action='store_true', default=False)
     # Tentatively, I don't think it's a good idea to run all test cases
     # So I'm making this a required positional param
     ha_parser.add_argument('test_name')
