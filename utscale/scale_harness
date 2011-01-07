@@ -145,6 +145,16 @@ class grid_scale_test(unittest.TestCase):
         self.session.delBroker(self.broker)
 
 
+    def assert_param(self, param_name):
+        if not param_name in self.param_names:
+            sys.stdout.write("Adding parameter %s to store:\n" % (param_name))
+            result = self.config_store.addParam(param_name)
+            if result.status != 0:
+                sys.stderr.write("Failed to add param %s: (%d, %s)\n" % (param_name, result.status, result.text))
+                raise WallabyStoreError("Failed to add param")
+            self.param_names += [param_name]
+
+
     def assert_feature(self, feature_name):
         if not feature_name in self.feat_names:
             result = self.config_store.addFeature(feature_name)
@@ -225,12 +235,7 @@ class grid_scale_test(unittest.TestCase):
 
     def tag_test_feature(self, feature_name, param_name):
         # ensure parameter name exists
-        if not param_name in self.param_names:
-            sys.stdout.write("Adding parameter %s to store:\n" % (param_name))
-            result = self.config_store.addParam(param_name)
-            if result.status != 0:
-                sys.stderr.write("Failed to add param %s: (%d, %s)\n" % (param_name, result.status, result.text))
-                raise WallabyStoreError("Failed to add param")
+        self.assert_param(param_name)
 
         # ensure that parameter requires restart
         param_obj = WallabyHelpers.get_param(self.session, self.config_store, param_name)
@@ -355,6 +360,9 @@ class grid_scale_test(unittest.TestCase):
             params["STARTD.%s.STARTD_LOG"%(tag)] = "$(LOG)/%s_Log"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
+
+        # make sure parameters are declared
+        for p in params.keys(): self.assert_param(p)
 
         feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
         result = feat_obj.modifyParams('replace', params, {})
