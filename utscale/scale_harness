@@ -325,7 +325,7 @@ class grid_scale_test(unittest.TestCase):
     def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, collector_host=None):
         self.assert_feature(feature_name)
 
-        if collector_host==None: collector_host = self.params.broker
+        if collector_host==None: collector_host = self.params.broker_addr
         sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
 
         params={}
