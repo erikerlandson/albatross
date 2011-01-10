@@ -340,6 +340,20 @@ class grid_scale_test(unittest.TestCase):
         params["ALLOW_READ"] = "*"
         params["SEC_DEFAULT_AUTHENTICATION_METHODS"] = "CLAIMTOBE"
 
+        params["START"] = "TRUE"
+        params["SUSPEND"] = "FALSE"
+        params["KILL"] = "FALSE"
+        params["CONTINUE"] = "TRUE"
+        params["WANT_VACATE"] = "FALSE"
+        params["WANT_SUSPEND"] = "FALSE"
+
+        params["CLAIM_WORKLIFE"] = "0"
+        params["MAXJOBRETIREMENTTIME"] = "3600 * 24"
+        params["PREEMPT"] = "FALSE"
+        params["PREEMPTION_REQUIREMENTS"] = "FALSE"
+        params["RANK"] = "0"
+        params["NEGOTIATOR_CONSIDER_PREEMPTION"] = "FALSE"
+
         if n_dynamic > 0:
             params["SLOT_TYPE_1"] = "cpus=%d"%(n_dynamic)
             params["SLOT_TYPE_1_PARTITIONABLE"] = "TRUE"
@@ -449,7 +463,7 @@ class grid_scale_test_small(grid_scale_test):
 
         self.ntarget = 1
         if len(candidate_nodes) < self.ntarget:
-            sys.stderr.write("% nodes insufficient for this test\n" % (len(candidate_nodes)))
+            sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
             raise Exception()
 
         # just take the first ones on the list
@@ -548,7 +562,7 @@ class grid_scale_test_4000(grid_scale_test):
 
         self.ntarget = 10
         if len(candidate_nodes) < self.ntarget:
-            sys.stderr.write("% nodes insufficient for this test\n" % (len(candidate_nodes)))
+            sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
             raise Exception()
 
         # just take the first ones on the list
