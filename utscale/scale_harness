@@ -290,21 +290,30 @@ class grid_scale_test(unittest.TestCase):
             q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'| wc -l" % (tagvar, tag)
         else:
             q_cmd = "condor_q -format \"%s\\n\" GlobalJobId | wc -l"
+
+        try:
+            # get an initial job count.
+            res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
+            n0 = int(res)
+        except:
+            n0 = 999999
         t0 = time.time()
         while (True):
-            elapsed = time.time() - t0
-            if (elapsed > maxtime): raise Exception("Exceeded max polling time")
-            sys.stdout.write("Waiting for job que to clear ")
+            sys.stdout.write("Waiting %s seconds for job que to clear " % (interval))
             if cluster != None: sys.stdout.write("for cluster %d " % (cluster))
-            sys.stdout.write("(%d seconds elapsed):\n" % (int(elapsed)))
+            elif tag != None: sys.stdout.write("for %s==\"%s\"" % (tagvar, tag))
+            sys.stdout.write("\n")
             time.sleep(interval)
             try:
                 res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
                 n = int(res)
             except:
-                n = 999
+                n = n0
+            elapsed = time.time() - t0
+            sys.stdout.write("elapsed= %d seconds   jobs= %d   cum-complete-rate= %f:\n" % (int(elapsed), n, float(n0-n)/float(elapsed)))
             # stop waiting when que is clear of specified jobs
             if n <= 0: break
+            if (elapsed > maxtime): raise Exception("Exceeded max polling time")
 
 
     def list_nodes(self, with_all_feats=None, without_any_feats=None, with_all_groups=None, without_any_groups=None):
@@ -511,12 +520,15 @@ class grid_scale_test_small(grid_scale_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
+        duration = 330
+        maxreps = 300
         submit_procs = []
         for j in xrange(10):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration 600 -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -ss -ss-interval 1.0 -ss-maxreps 300 >out%03d 2>err%03d" % (j,j,j)
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -ss -ss-interval 1.0 -ss-maxreps %d >out%03d 2>err%03d" % (duration, j, maxreps, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
+
         sys.stdout.write("Waiting for spawned submission processes to complete...\n")
         t0 = time.time()
         while True:
@@ -525,9 +537,44 @@ class grid_scale_test_small(grid_scale_test):
             for p in submit_procs:
                 if p.poll() == None: completed = False
             if completed: break
+
         elapsed = time.time() - t0
         sys.stdout.write("elapsed time = %s\n" % (elapsed))
 
+
+    def test_submit_and_complete(self):
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise Exception()
+        # this unit test should pass
+        duration = 330
+        maxreps = 300
+        submit_procs = []
+        for j in xrange(10):
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+GridScaleTestTag=\"Small\"' -ss -ss-interval 1.0 -ss-maxreps %d >out%03d 2>err%03d" % (duration, j, maxreps, j, j)
+            sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
+            proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
+            submit_procs += [proc]
+
+        sys.stdout.write("Waiting for spawned submission processes to complete...\n")
+        t0 = time.time()
+        while True:
+            time.sleep(1)
+            completed = True
+            for p in submit_procs:
+                if p.poll() == None: completed = False
+            if completed: break
+
+        elapsed = time.time() - t0
+        sys.stdout.write("elapsed time = %s\n" % (elapsed))
+        delay = duration - elapsed
+        sys.stdout.write("waiting %f secs for start of job completions\n" % (float(delay)))
+        time.sleep(delay)
+
+        # this waits for jobs to finish, and also measures completion rate
+        self.poll_for_empty_job_queue(tag = "Small", interval = 30, maxtime=int(elapsed+duration))
+
+        
 
 # medium scale test
 class grid_scale_test_medium(grid_scale_test):
