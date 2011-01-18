@@ -524,8 +524,7 @@ class grid_scale_test_small(grid_scale_test):
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
         # before we leave set-up, make sure activation and restart are complete
-        nslots = self.ntarget*8*8
-        self.poll_for_slots(nslots, group='GridScaleTestSmall', interval=10, maxtime=120, required=int(nslots*0.75))
+        self.poll_for_slots(self.ntarget*8*8, group='GridScaleTestSmall', interval=10, maxtime=60, required=(self.ntarget-1)*8*8)
 
         # flag that all setup succeeded
         self.setup = True
@@ -541,11 +540,12 @@ class grid_scale_test_small(grid_scale_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        duration = 330
-        maxreps = 300
+        duration = 400
+        maxreps = 330
+        nsub = 10
         submit_procs = []
-        for j in xrange(10):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -ss -ss-interval 1.0 -ss-maxreps %d >out%03d 2>err%03d" % (duration, j, maxreps, j, j)
+        for j in xrange(nsub):
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -ss -ss-interval 0.95 -ss-maxreps %d >out%03d 2>err%03d" % (duration, j, maxreps, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -560,40 +560,21 @@ class grid_scale_test_small(grid_scale_test):
             if completed: break
 
         elapsed = time.time() - t0
-        sys.stdout.write("elapsed time = %s\n" % (elapsed))
+        sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(maxreps)/float(elapsed), nsub))
 
 
-    def test_submit_and_complete(self):
+    def test_completion_rate(self):
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        duration = 330
-        maxreps = 300
-        submit_procs = []
-        for j in xrange(10):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+GridScaleTestTag=\"Small\"' -ss -ss-interval 1.0 -ss-maxreps %d >out%03d 2>err%03d" % (duration, j, maxreps, j, j)
-            sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
-            proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
-            submit_procs += [proc]
-
-        sys.stdout.write("Waiting for spawned submission processes to complete...\n")
-        t0 = time.time()
-        while True:
-            time.sleep(1)
-            completed = True
-            for p in submit_procs:
-                if p.poll() == None: completed = False
-            if completed: break
-
-        elapsed = time.time() - t0
-        sys.stdout.write("elapsed time = %s\n" % (elapsed))
-        delay = duration - elapsed
-        sys.stdout.write("waiting %f secs for start of job completions\n" % (float(delay)))
-        time.sleep(delay)
+        cjs_command = "~/git/condor_tools/bin/cjs -duration 15 -n 4000 -sub 10 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+GridScaleTestTag=\"Small\"' >/tmp/sh_out 2>/tmp/sh_err"
+        sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
+        proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
+        proc.wait()
 
         # this waits for jobs to finish, and also measures completion rate
-        self.poll_for_empty_job_queue(tag = "Small", interval = 30, maxtime=int(elapsed+duration))
+        self.poll_for_empty_job_queue(tag = "Small", interval = 60, maxtime=600)
 
         
 
