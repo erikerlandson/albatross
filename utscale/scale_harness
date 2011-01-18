@@ -259,7 +259,7 @@ class grid_scale_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add param")
 
 
-    def poll_for_slots(self, nslots, group=None, interval=30, maxtime=600):
+    def poll_for_slots(self, nslots, group=None, interval=30, maxtime=600, required=None):
         if group == None:
             status_cmd = "condor_status -subsystem startd -format \"%s\\n\" Name | wc -l"
         else:
@@ -280,7 +280,9 @@ class grid_scale_test(unittest.TestCase):
             # stop waiting if we see we have the desired number of configured startds
             sys.stdout.write("elapsed= %d sec  slots= %d:\n" % (int(elapsed), n))
             if n >= nslots: break
-            if (elapsed > maxtime): raise Exception("Exceeded max polling time")
+            if (elapsed > maxtime):
+                if (required != None) and (n >= required): break
+                raise Exception("Exceeded max polling time")
 
 
     def poll_for_empty_job_queue(self, cluster=None, tag=None, tagvar="GridScaleTestTag", interval=30, maxtime=600):
@@ -504,7 +506,8 @@ class grid_scale_test_small(grid_scale_test):
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
         # before we leave set-up, make sure activation and restart are complete
-        self.poll_for_slots(int((self.ntarget*8*8)/2), group='GridScaleTestSmall', interval=10, maxtime=120)
+        nslots = self.ntarget*8*8
+        self.poll_for_slots(nslots, group='GridScaleTestSmall', interval=10, maxtime=120, required=int(nslots*0.75))
 
         # flag that all setup succeeded
         self.setup = True
