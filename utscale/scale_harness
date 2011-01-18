@@ -89,7 +89,7 @@ class grid_scale_test(unittest.TestCase):
         sys.stdout.write("Finished config snapshot %s\n" % (name))
 
     def load_snapshot(self, name):
-        sys.stdout.write("Restoring pool config from %s:\n" % (name))
+        sys.stdout.write("Loading pool config from %s:\n" % (name))
         result = self.config_store.loadSnapshot(name)
         if result.status != 0:
             sys.stderr.write("Failed to restore from %s: (%d, %s)\n" % (name, result.status, result.text))
@@ -103,6 +103,19 @@ class grid_scale_test(unittest.TestCase):
         self.devnull = open(os.devnull, 'rw')
 
         self.connect_to_wallaby_store()
+
+        # take a snapshot before we load any requested pre-config
+        self.testdate = time.strftime("%Y/%m/%d_%H:%M:%S")
+        self.snapshot = "grid_scale_%s_pretest" % (self.testdate)
+        self.take_snapshot(self.snapshot)
+
+        # load pre-config snapshot after we snapshot current state
+        if self.params.preload_snapshot != None:
+            self.load_snapshot(self.params.preload_snapshot)
+            result = self.config_store.activateConfiguration(_timeout=600)
+            if result.status != 0:
+                sys.stderr.write("Failed to activate configuration %s: (%s, %s)\n" % (self.params.preload_snapshot, result.status, result.text))
+                raise Exception(result.text)
 
         try:
             sys.stdout.write("Obtaining nodes from config store:\n")
@@ -125,9 +138,6 @@ class grid_scale_test(unittest.TestCase):
         self.feat_names = [x.name for x in feat_list]
         self.param_names = [x.name for x in param_list]
 
-        self.testdate = time.strftime("%Y/%m/%d_%H:%M:%S")
-        self.snapshot = "grid_scale_%s_pretest" % (self.testdate)
-        self.take_snapshot(self.snapshot)
 
 
     def tearDown(self):
@@ -693,6 +703,7 @@ if __name__ == "__main__":
     ha_parser.add_argument('-U', '--user', dest='username', default='')
     ha_parser.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI')
     ha_parser.add_argument('--no-restore', dest='no_restore', action='store_true', default=False)
+    ha_parser.add_argument('--preload-snapshot', dest='preload_snapshot', default=None)
     # Tentatively, I don't think it's a good idea to run all test cases
     # So I'm making this a required positional param
     ha_parser.add_argument('test_name')
