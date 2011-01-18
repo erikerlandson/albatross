@@ -300,6 +300,8 @@ class grid_scale_test(unittest.TestCase):
         except:
             n0 = 999999
         t0 = time.time()
+        tL = t0
+        nL = n0
         while (True):
             sys.stdout.write("Waiting %s seconds for job que to clear " % (interval))
             if cluster != None: sys.stdout.write("for cluster %d " % (cluster))
@@ -310,12 +312,18 @@ class grid_scale_test(unittest.TestCase):
                 res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
                 n = int(res)
             except:
-                n = n0
-            elapsed = time.time() - t0
-            sys.stdout.write("elapsed= %d seconds   jobs= %d   cum-complete-rate= %f:\n" % (int(elapsed), n, float(n0-n)/float(elapsed)))
+                n = nL
+            tC = time.time()
+            elapsed = tC - t0
+            elapsedI = tC - tL
+            rate = float(n0-n)/float(elapsed)
+            rateI = float(nL-n)/float(elapsedI)
+            sys.stdout.write("elapsed= %d sec   interval= %d sec   jobs= %d   rate= %f  cum-rate= %f:\n" % (int(elapsed), int(elapsedI), n, rateI, rate))
             # stop waiting when que is clear of specified jobs
             if n <= 0: break
             if (elapsed > maxtime): raise Exception("Exceeded max polling time")
+            nL = n
+            tL = tC
 
 
     def list_nodes(self, with_all_feats=None, without_any_feats=None, with_all_groups=None, without_any_groups=None):
