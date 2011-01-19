@@ -112,10 +112,6 @@ class grid_scale_test(unittest.TestCase):
         # load pre-config snapshot after we snapshot current state
         if self.params.preload_snapshot != None:
             self.load_snapshot(self.params.preload_snapshot)
-            result = self.config_store.activateConfiguration(_timeout=600)
-            if result.status != 0:
-                sys.stderr.write("Failed to activate configuration %s: (%s, %s)\n" % (self.params.preload_snapshot, result.status, result.text))
-                raise Exception(result.text)
 
         try:
             sys.stdout.write("Obtaining nodes from config store:\n")
