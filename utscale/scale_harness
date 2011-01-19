@@ -269,7 +269,7 @@ class grid_scale_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add param")
 
 
-    def poll_for_slots(self, nslots, group=None, interval=30, maxtime=600, required=None):
+    def poll_for_slots(self, nslots, group=None, interval=30, maxtime=600, required=None, expected_nodes=None):
         if group == None:
             status_cmd = "condor_status -subsystem startd -format \"%s\\n\" Name | wc -l"
         else:
@@ -291,6 +291,11 @@ class grid_scale_test(unittest.TestCase):
             sys.stdout.write("elapsed= %d sec  slots= %d:\n" % (int(elapsed), n))
             if n >= nslots: break
             if (elapsed > maxtime):
+                if expected_nodes != None:
+                    xs = set(expected_nodes)
+                    rs = set(self.reporting_nodes(with_groups=group))
+                    missing = list(xs - rs)
+                    sys.stdout.write("missing nodes: %s\n" % (missing))
                 if (required != None) and (n >= required): break
                 raise Exception("Exceeded max polling time")
 
@@ -336,10 +341,25 @@ class grid_scale_test(unittest.TestCase):
             tL = tC
 
 
-    def list_nodes(self, with_all_feats=None, without_any_feats=None, with_all_groups=None, without_any_groups=None):
+    def reporting_nodes(self, with_groups=None):
+        if with_groups == None: with_groups = []
+        elif isinstance(with_groups, str): with_groups = [with_groups]
+        elif isinstance(with_groups, set): with_groups = list(with_groups)
+        
+        cexpr = " && ".join(["stringListMember(\"%s\", WallabyGroups)" % (g) for g in with_groups])
+        cmd = "condor_status -master"
+        if cexpr != "": cmd += " -constraint '%s'" % (cexpr)
+        res = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
+        nlist = res.split()
+        return nlist
+
+
+    def list_nodes(self, with_all_feats=None, without_any_feats=None, with_all_groups=None, without_any_groups=None, checkin_since=None):
         r = []
         for node in self.node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, node)
+
+            if (checkin_since != None) and ((node_obj.last_checkin / 1000000) < checkin_since): continue
 
             nodefeats = []
             if (with_all_feats != None) or (without_any_feats != None):
@@ -489,7 +509,9 @@ class grid_scale_test_small(grid_scale_test):
             raise
 
         # class specific setup goes after parent class
-        candidate_nodes = self.list_nodes(with_all_groups=['GridScaleTestNode'], without_any_feats=['CentralManager','Negotiator','Collector'])
+        provisioned_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
+        reporting_nodes = self.reporting_nodes()
+        candidate_nodes = list(set(provisioned_nodes) & set(reporting_nodes))
 
         self.ntarget = 8
         if len(candidate_nodes) < self.ntarget:
@@ -524,7 +546,7 @@ class grid_scale_test_small(grid_scale_test):
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
         # before we leave set-up, make sure activation and restart are complete
-        self.poll_for_slots(self.ntarget*8*8, group='GridScaleTestSmall', interval=10, maxtime=60, required=(self.ntarget-1)*8*8)
+        self.poll_for_slots(self.ntarget*8*8, group='GridScaleTestSmall', interval=10, maxtime=60, required=(self.ntarget-1)*8*8, expected_nodes=self.target_nodes)
 
         # flag that all setup succeeded
         self.setup = True
