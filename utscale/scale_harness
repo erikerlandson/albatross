@@ -594,22 +594,108 @@ class grid_scale_test_small(grid_scale_test):
         # this waits for jobs to finish, and also measures completion rate
         self.poll_for_empty_job_queue(tag = "Small", interval = 60, maxtime=600)
 
-        
+
 
 # medium scale test
 class grid_scale_test_medium(grid_scale_test):
     def setUp(self):
-        grid_scale_test.setUp(self)
+        self.setup = False
+        try:
+            grid_scale_test.setUp(self)
+        except:
+            sys.stderr.write("setup failed")
+            raise
+
         # class specific setup goes after parent class
+        provisioned_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
+        reporting_nodes = self.reporting_nodes()
+        candidate_nodes = list(set(provisioned_nodes) & set(reporting_nodes))
+
+        self.ntarget = 10
+        if len(candidate_nodes) < self.ntarget:
+            sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
+            raise Exception()
+
+        # just take the first ones on the list
+        self.target_nodes = candidate_nodes[:self.ntarget]
+        sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
+
+        self.assert_feature('GridScaleTestMedium')
+        self.build_execute_feature('GridScaleTestMediumExecute', n_startd=50, n_slots=1, n_dynamic=8)
+
+        # define features on the given groups
+        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestMedium', 'GridScaleTestMediumExecute'], ['GridScaleTestMedium'])
+
+        # This is my subversive technique for ensuring that my target systems restart
+        self.tag_test_feature('GridScaleTestMedium', 'GRID_SCALE_TEST_RESTART_TAG')
+
+        # Make sure all config is cleared from nodes
+        self.clear_nodes(self.target_nodes)
+
+        # define groups on the given nodes
+        self.assert_node_groups(['GridScaleTestMedium'], self.target_nodes)
+
+        # snapshot this test config
+        self.take_snapshot("grid_scale_%s_medium_test" % (self.testdate))
+
+        # Activate new config
+        result = self.config_store.activateConfiguration(_timeout=600)
+        if result.status != 0:
+            raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
+
+        # before we leave set-up, make sure activation and restart are complete
+        self.poll_for_slots(self.ntarget*50*1, group='GridScaleTestMedium', interval=10, maxtime=60, required=(self.ntarget-1)*50*1, expected_nodes=self.target_nodes)
+
+        # flag that all setup succeeded
+        self.setup = True
+
 
     def tearDown(self):
         # class specific teardown goes before parent class
         grid_scale_test.tearDown(self)
-        
-    def test1(self):
+
+
+    def test_submit_rate(self):
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise Exception()
         # this unit test should pass
-        sys.stdout.write("medium scale test: sleeping...\n")
-        time.sleep(10)
+        duration = 400
+        maxreps = 650
+        nsub = 20
+        interval = 0.50 * 0.95
+        submit_procs = []
+        for j in xrange(nsub):
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxreps %d >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, maxreps, j, j)
+            sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
+            proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
+            submit_procs += [proc]
+
+        sys.stdout.write("Waiting for spawned submission processes to complete...\n")
+        t0 = time.time()
+        while True:
+            time.sleep(1)
+            completed = True
+            for p in submit_procs:
+                if p.poll() == None: completed = False
+            if completed: break
+
+        elapsed = time.time() - t0
+        sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(maxreps)/float(elapsed), nsub))
+
+
+    def test_completion_rate(self):
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise Exception()
+        # this unit test should pass
+        cjs_command = "~/git/condor_tools/bin/cjs -duration 30 -n 4000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+GridScaleTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err"
+        sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
+        proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
+        proc.wait()
+
+        # this waits for jobs to finish, and also measures completion rate
+        self.poll_for_empty_job_queue(tag = "Medium", interval = 60, maxtime=600)
 
 
 
@@ -675,7 +761,7 @@ class grid_scale_test_4000(grid_scale_test):
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
         # before we leave set-up, make sure activation and restart are complete
-        #self.poll_for_slots(self.ntarget*8*8, group='GridScaleTestSmall', interval=30, maxtime=600)
+        #self.poll_for_slots(self.ntarget*8*8, group='GridScaleTest4000', interval=30, maxtime=600)
 
         # flag that all setup succeeded
         self.setup = True
