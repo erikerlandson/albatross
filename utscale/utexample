@@ -7,20 +7,56 @@ import tempfile
 import subprocess
 import unittest
 
+def setUpModule():
+    sys.stdout.write("setUpModule\n")
+
+def tearDownModule():
+    sys.stdout.write("tearDownModule\n")
+
 class example_test_case(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        sys.stdout.write("setUpClass\n")
+
+    @classmethod
+    def tearDownClass(cls):
+        sys.stdout.write("tearDownClass\n")
+
     def setUp(self):
-        sys.stdout.write("Fixture setup!\n")
+        sys.stdout.write("Fixture setup\n")
 
     def tearDown(self):
-        sys.stdout.write("Fixture teardown!\n")
+        sys.stdout.write("Fixture teardown\n")
 
     def test1(self):
         # this unit test should pass
+        sys.stdout.write("test1\n")
         self.assertEqual(1, 1)
 
     def test2(self):
         # this unit test should FAIL!
+        sys.stdout.write("test2\n")
         self.assertEqual(1, 2)
+
+
+class example_base(unittest.TestCase):
+    def setUp(self):
+        sys.stdout.write("base setup\n")
+
+    def tearDown(self):
+        sys.stdout.write("base teardown\n")
+
+
+class example_sub1(example_base):
+    def setUp(self):
+        sys.stdout.write("sub1 setup\n")
+
+    def tearDown(self):
+        sys.stdout.write("sub1 teardown\n")
+
+    def test(self):
+        sys.stdout.write("test\n")
+
 
 if __name__ == "__main__":
     # this automatically extracts test methods of form 'test*' and runs them
