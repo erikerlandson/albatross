@@ -14,7 +14,14 @@ from wallabyclient.exceptions import *
 from wallabyclient import WallabyHelpers, WallabyTypes
 from qmf.console import Session
 
-sys.path += ['../modules']
+# If we're using this directly from the albatross repo, we can find repo modules here:
+if sys.path[0] != '':
+    modules_dir = '%s/../modules' % (sys.path[0])
+else:
+    modules_dir='../modules'
+sys.path += [modules_dir]
+
+# import albatross repo modules
 import utcondor
 
 
@@ -379,4 +386,4 @@ if __name__ == "__main__":
 
     # This provides nice default command-line facilities for running
     # any unit tests defined in this module/command.
-    unittest.main(argv=[args.test_name])
+    unittest.main(argv=[sys.argv[0], args.test_name])

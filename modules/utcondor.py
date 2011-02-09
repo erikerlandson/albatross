@@ -22,18 +22,22 @@ parser.add_argument('-p', '--package', dest='package', default='com.redhat.grid.
 parser.add_argument('--no-restore', dest='no_restore', action='store_true', default=False, help='do not restore pre-test config')
 parser.add_argument('--preload-snapshot', dest='preload_snapshot', default=None, metavar='<snapshot-name>')
 
-connection = None
 
+supported_api_versions = {20100804:0, 20100915:0, 20101031:1}
+connection = None
 params = None
 
 
 def init(p):
+    global params
     # At the moment I don't feel sure what the semantics would be for allowing multiple init calls
-    if params != None: raise Exception("params already initialized")
+    if params is not None: raise Exception("params already initialized")
     params = p
 
 
 def connect_to_wallaby(broker_addr='127.0.0.1', port=5672, username='', passwd='', mechanisms='ANONYMOUS PLAIN GSSAPI'):
+    global supported_api_versions
+
     # set up session for wallaby
     session = Session()
 
@@ -74,7 +78,7 @@ def connect_to_wallaby(broker_addr='127.0.0.1', port=5672, username='', passwd='
         raise
 
     # return all the connection objects
-    return (session, store_agent, config_store)
+    return (session, broker, store_agent, config_store)
 
 
 # A base class for our unit tests -- defines snapshot/restore for the pool
@@ -101,12 +105,14 @@ class condor_unit_test(unittest.TestCase):
 
         self.devnull = open(os.devnull, 'rw')
 
-        if params == None: raise Exception("params uninitialized -- call init() prior to setUp() method")
+        global params
+        if params is None: raise Exception("params uninitialized -- call init() prior to setUp() method")
         self.params = params
 
+        global connection
         if connection == None:
             connection = connect_to_wallaby(broker_addr=params.broker_addr, port=params.port, username=params.username, passwd=params.passwd, mechanisms=params.mechanisms)
-        (self.session, self.store_agent, self.config_store) = connection
+        (self.session, self.broker, self.store_agent, self.config_store) = connection
 
         # take a snapshot before we load any requested pre-config
         self.testdate = time.strftime("%Y/%m/%d_%H:%M:%S")
