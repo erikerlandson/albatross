@@ -305,7 +305,35 @@ class condor_unit_test(unittest.TestCase):
                 raise Exception("Exceeded max polling time")
 
 
-    def poll_for_empty_job_queue(self, cluster=None, tag=None, tagvar="GridScaleTestTag", interval=30, maxtime=600):
+    def remove_jobs(self, cluster=None, tag=None, tagvar="CondorUnitTestTag"):
+        if cluster != None:
+            rm_cmd = "condor_rm -constraint 'ClusterId==%d'" % (cluster)
+        elif tag != None:
+            rm_cmd = "condor_rm -constraint '%s==\"%s\"'" % (tagvar, tag)
+        else:
+            rm_cmd = "condor_rm -all"
+        subprocess.call(["/bin/sh", "-c", rm_cmd], stdout=self.devnull, stderr=self.devnull)
+
+
+    def job_count(self, cluster=None, tag=None, tagvar="CondorUnitTestTag"):
+        if cluster != None:
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'| wc -l" % (cluster)
+        elif tag != None:
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'| wc -l" % (tagvar, tag)
+        else:
+            q_cmd = "condor_q -format \"%s\\n\" GlobalJobId | wc -l"
+
+        try:
+            # get an initial job count.
+            res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
+            n = int(res)
+        except:
+            n = 0
+
+        return n
+
+
+    def poll_for_empty_job_queue(self, cluster=None, tag=None, tagvar="CondorUnitTestTag", interval=30, maxtime=600):
         if cluster != None:
             q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'| wc -l" % (cluster)
         elif tag != None:

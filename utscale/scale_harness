@@ -67,7 +67,7 @@ class grid_scale_test_micro(utcondor.condor_unit_test):
 
     def tearDown(self):
         # Don't wait for jobs to complete, just nuke them
-        subprocess.call(["condor_rm", "-constraint", "GridScaleTestTag==\"Micro\""], stdout=self.devnull, stderr=self.devnull)
+        subprocess.call(["condor_rm", "-constraint", "CondorUnitTestTag==\"Micro\""], stdout=self.devnull, stderr=self.devnull)
         # Do wait for job queue to empty before restoration and reactivation
         self.poll_for_empty_job_queue(tag="Micro", interval=10, maxtime=120)
 
@@ -81,7 +81,7 @@ class grid_scale_test_micro(utcondor.condor_unit_test):
         sys.stdout.write("Testing submission rate over %d individual submits:\n" % (n))
         t0 = time.time()
         for k in xrange(n):
-            subprocess.Popen("condor_submit", stdin=subprocess.PIPE, stdout=self.devnull, stderr=self.devnull).communicate(input='universe = vanilla\nexecutable = /bin/sleep\narguments = 10m\nrequirements = (WallabyGroups == "GridScaleTestMicro")\n+GridScaleTestTag="Micro"\nqueue\n')
+            subprocess.Popen("condor_submit", stdin=subprocess.PIPE, stdout=self.devnull, stderr=self.devnull).communicate(input='universe = vanilla\nexecutable = /bin/sleep\narguments = 10m\nrequirements = (WallabyGroups == "GridScaleTestMicro")\n+CondorUnitTestTag="Micro"\nqueue\n')
         elapsed = time.time() - t0
         sys.stdout.write("%f seconds for %d submits -> %f submissions / sec\n" % (elapsed, n, float(n)/float(elapsed)))
         
@@ -179,7 +179,7 @@ class grid_scale_test_small(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        cjs_command = "~/git/condor_tools/bin/cjs -duration 15 -n 4000 -sub 10 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+GridScaleTestTag=\"Small\"' >/tmp/sh_out 2>/tmp/sh_err"
+        cjs_command = "~/git/condor_tools/bin/cjs -duration 15 -n 4000 -sub 10 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+CondorUnitTestTag=\"Small\"' >/tmp/sh_out 2>/tmp/sh_err"
         sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
         proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
         proc.wait()
@@ -207,6 +207,8 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         self.ntarget = 10
         if len(candidate_nodes) < self.ntarget:
             sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
+            sys.stderr.write("provisioned but not reporting= %s\n" % (list(set(provisioned_nodes) - set(candidate_nodes))))
+            sys.stderr.write("reporting but not provisioned= %s\n" % (list(set(reporting_nodes) - set(candidate_nodes))))
             raise Exception()
 
         # just take the first ones on the list
@@ -254,12 +256,12 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             raise Exception()
         # this unit test should pass
         duration = 400
-        maxreps = 650
+        sustain = 300
         nsub = 20
-        interval = 0.50 * 0.95
+        interval = 0.40
         submit_procs = []
         for j in xrange(nsub):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxreps %d >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, maxreps, j, j)
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, maxreps, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -274,7 +276,10 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             if completed: break
 
         elapsed = time.time() - t0
-        sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(maxreps)/float(elapsed), nsub))
+        njobs = self.job_count(tag="Medium")
+        sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(njobs)/float(elapsed), nsub))
+        self.remove_jobs(tag="Medium")
+        self.poll_for_empty_job_queue(tag="Medium", interval=15, maxtime=120)
 
 
     def test_completion_rate(self):
@@ -282,7 +287,7 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        cjs_command = "~/git/condor_tools/bin/cjs -duration 30 -n 4000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+GridScaleTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err"
+        cjs_command = "~/git/condor_tools/bin/cjs -duration 30 -n 4000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err"
         sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
         proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
         proc.wait()
