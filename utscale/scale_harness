@@ -256,12 +256,12 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             raise Exception()
         # this unit test should pass
         duration = 400
-        sustain = 300
+        sustain = 310
         nsub = 20
-        interval = 0.40
+        interval = 0.4
         submit_procs = []
         for j in xrange(nsub):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, maxreps, j, j)
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
