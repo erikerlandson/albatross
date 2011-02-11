@@ -200,15 +200,15 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             raise
 
         # class specific setup goes after parent class
-        provisioned_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
+        qualified_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
         reporting_nodes = self.reporting_nodes()
-        candidate_nodes = list(set(provisioned_nodes) & set(reporting_nodes))
+        candidate_nodes = list(set(qualified_nodes) & set(reporting_nodes))
 
         self.ntarget = 10
         if len(candidate_nodes) < self.ntarget:
             sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
-            sys.stderr.write("provisioned but not reporting= %s\n" % (list(set(provisioned_nodes) - set(candidate_nodes))))
-            sys.stderr.write("reporting but not provisioned= %s\n" % (list(set(reporting_nodes) - set(candidate_nodes))))
+            sys.stderr.write("qualified but not reporting= %s\n" % (list(set(qualified_nodes) - set(reporting_nodes))))
+            sys.stderr.write("reporting but not qualified= %s\n" % (list(set(reporting_nodes) - set(qualified_nodes))))
             raise Exception()
 
         # just take the first ones on the list
@@ -216,7 +216,7 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
 
         self.assert_feature('GridScaleTestMedium')
-        self.build_execute_feature('GridScaleTestMediumExecute', n_startd=50, n_slots=1, n_dynamic=8)
+        (pslots,dslots) = self.build_execute_feature('GridScaleTestMediumExecute', n_startd=50, n_slots=1, n_dynamic=8)
 
         # define features on the given groups
         self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestMedium', 'GridScaleTestMediumExecute'], ['GridScaleTestMedium'])
@@ -239,10 +239,13 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
         # before we leave set-up, make sure activation and restart are complete
-        self.poll_for_slots(self.ntarget*50*1, group='GridScaleTestMedium', interval=10, maxtime=60, required=(self.ntarget-1)*50*1, expected_nodes=self.target_nodes)
-
-        # flag that all setup succeeded
-        self.setup = True
+        try:
+            self.poll_for_slots(self.ntarget*pslots, group='GridScaleTestMedium', interval=15, maxtime=120, expected_nodes=self.target_nodes)
+        except:
+            pass
+        else:
+            # flag that all setup succeeded
+            self.setup = True
 
 
     def tearDown(self):
@@ -258,7 +261,7 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         duration = 400
         sustain = 310
         nsub = 20
-        interval = 0.4
+        interval = 0.0
         submit_procs = []
         for j in xrange(nsub):
             cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, j, j)
@@ -267,17 +270,11 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             submit_procs += [proc]
 
         sys.stdout.write("Waiting for spawned submission processes to complete...\n")
-        t0 = time.time()
-        while True:
-            time.sleep(1)
-            completed = True
-            for p in submit_procs:
-                if p.poll() == None: completed = False
-            if completed: break
+        elapsed = self.poll_for_process_completion(submit_procs)
 
-        elapsed = time.time() - t0
         njobs = self.job_count(tag="Medium")
         sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(njobs)/float(elapsed), nsub))
+
         self.remove_jobs(tag="Medium")
         self.poll_for_empty_job_queue(tag="Medium", interval=15, maxtime=120)
 

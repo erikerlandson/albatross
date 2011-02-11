@@ -274,6 +274,26 @@ class condor_unit_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add param")
 
 
+    def poll_for_process_completion(self, procs, interval=1, progress_interval=10):
+        t0 = time.time()
+        t = 0
+        tt = 0
+        while True:
+            time.sleep(interval)
+            t += interval
+            tt += interval
+            if (t >= progress_interval):
+                t -= progress_interval
+                sys.stdout.write("..%04d"%(tt))
+                sys.stdout.flush()
+            completed = True
+            for p in procs:
+                if p.poll() == None: completed = False
+            if completed: break
+        sys.stdout.write("\n")
+        return time.time() - t0
+
+
     def poll_for_slots(self, nslots, group=None, interval=30, maxtime=600, required=None, expected_nodes=None):
         if group == None:
             status_cmd = "condor_status -subsystem startd -format \"%s\\n\" Name | wc -l"
@@ -392,6 +412,8 @@ class condor_unit_test(unittest.TestCase):
         for node in self.node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, node)
 
+            sys.stderr.write("    list_nodes: node=%s   checkin= %s\n" % (node, node_obj.last_checkin))
+
             if (checkin_since != None) and ((node_obj.last_checkin / 1000000) < checkin_since): continue
 
             nodefeats = []
@@ -467,3 +489,5 @@ class condor_unit_test(unittest.TestCase):
             sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
             raise WallabyStoreError("Failed to add param")
 
+        tslots = n_startd * n_slots
+        return (tslots, tslots * n_dynamic)
