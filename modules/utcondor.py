@@ -513,3 +513,33 @@ class condor_unit_test(unittest.TestCase):
 
         tslots = n_startd * n_slots
         return (tslots, tslots * n_dynamic)
+
+
+    def build_scheduler_feature(self, feature_name, n_schedd=1):
+        sys.stdout.write("building scheduler feature %s with %d schedds\n"%(feature_name, n_schedd))
+        self.assert_feature(feature_name)
+
+        params={}
+        daemon_list = ">= "
+        for s in xrange(n_schedd):
+            tag = "SCH%03d"%(s)
+            if s > 0: daemon_list += ","
+            daemon_list += "SCHEDD_%s"%(tag)
+            params["SCHEDD_%s"%(tag)] = "$(SCHEDD)"
+            params["SCHEDD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
+            params["SCHEDD.%s.SCHEDD_NAME"%(tag)] = "%s"%(tag)
+            params["SCHEDD.%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.%s-address"%(tag)
+            params["SCHEDD.%s.SCHEDD_LOG"%(tag)] = "$(LOG)/%s_Log"%(tag)
+
+        params["DAEMON_LIST"] = daemon_list
+
+        # make sure parameters are declared
+        splist = params.keys()
+        splist.sort()
+        for p in splist: self.assert_param(p)
+
+        feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
+        result = feat_obj.modifyParams('replace', params, {})
+        if result.status != 0:
+            sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
+            raise WallabyStoreError("Failed to add feature")
