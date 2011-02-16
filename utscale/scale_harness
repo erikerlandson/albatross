@@ -297,13 +297,23 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        cjs_command = "~/git/condor_tools/bin/cjs -duration 30 -n 4000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err"
+        cjs_command = "~/git/condor_tools/bin/cjs -duration 30 -n 10000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err"
+
+        sincetime=time.time()
         sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
         proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
         proc.wait()
 
         # this waits for jobs to finish, and also measures completion rate
-        self.poll_for_empty_job_queue(tag = "Medium", interval = 60, maxtime=600)
+        self.poll_for_empty_job_queue(tag = "Medium", interval = 60, maxtime=3600)
+
+        hfname = tempfile.mktemp(prefix="sh_hist_")
+        subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
+
+        sys.stdout.write("completions:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        sys.stdout.write("completions cum rate:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
 
 
 
