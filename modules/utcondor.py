@@ -432,18 +432,35 @@ class condor_unit_test(unittest.TestCase):
         return r
 
 
-    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, collector_host=None):
+    def build_access_feature(self, feature_name, collector_host=None):
         self.assert_feature(feature_name)
 
         if collector_host==None: collector_host = self.params.broker_addr
-        sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
+        sys.stdout.write("building access feature %s\n"%(feature_name))
 
         params={}
-        params["USE_PROCD"] = "FALSE"
         params["COLLECTOR_HOST"] = collector_host
         params["ALLOW_WRITE"] = "*"
         params["ALLOW_READ"] = "*"
         params["SEC_DEFAULT_AUTHENTICATION_METHODS"] = "CLAIMTOBE"
+
+        # make sure parameters are declared
+        for p in params.keys(): self.assert_param(p)
+
+        feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
+        result = feat_obj.modifyParams('replace', params, {})
+        if result.status != 0:
+            sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
+            raise WallabyStoreError("Failed to add feature")
+
+
+    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0):
+        self.assert_feature(feature_name)
+
+        sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
+
+        params={}
+        params["USE_PROCD"] = "FALSE"
 
         params["START"] = "TRUE"
         params["SUSPEND"] = "FALSE"
@@ -468,10 +485,11 @@ class condor_unit_test(unittest.TestCase):
             params["NUM_SLOTS"] = "%d"%(n_slots)
             params["NUM_CPUS"] = "%d"%(n_slots)
 
-        daemon_list = "MASTER"
+        daemon_list = ">= "
         for s in xrange(n_startd):
             tag = "ST%03d"%(s)
-            daemon_list += ",STARTD_%s"%(tag)
+            if s > 0: daemon_list += ","
+            daemon_list += "STARTD_%s"%(tag)
             params["STARTD_%s"%(tag)] = "$(STARTD)"
             params["STARTD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
             params["STARTD.%s.STARTD_NAME"%(tag)] = "%s"%(tag)
@@ -481,13 +499,15 @@ class condor_unit_test(unittest.TestCase):
         params["DAEMON_LIST"] = daemon_list
 
         # make sure parameters are declared
-        for p in params.keys(): self.assert_param(p)
+        splist = params.keys()
+        splist.sort()
+        for p in splist: self.assert_param(p)
 
         feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
         result = feat_obj.modifyParams('replace', params, {})
         if result.status != 0:
             sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
-            raise WallabyStoreError("Failed to add param")
+            raise WallabyStoreError("Failed to add feature")
 
         tslots = n_startd * n_slots
         return (tslots, tslots * n_dynamic)

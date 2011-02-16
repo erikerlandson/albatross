@@ -112,10 +112,11 @@ class grid_scale_test_small(utcondor.condor_unit_test):
         sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
 
         self.assert_feature('GridScaleTestSmall')
+        self.build_access_feature('GridScaleTestSmallAccess')
         self.build_execute_feature('GridScaleTestSmallExecute', n_startd=8, n_slots=8, n_dynamic=0)
 
         # define features on the given groups
-        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestSmall', 'GridScaleTestSmallExecute'], ['GridScaleTestSmall'])
+        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestSmall', 'GridScaleTestSmallAccess', 'GridScaleTestSmallExecute'], ['GridScaleTestSmall'])
 
         # This is my subversive technique for ensuring that my target systems restart
         self.tag_test_feature('GridScaleTestSmall', 'GRID_SCALE_TEST_RESTART_TAG')
@@ -216,10 +217,11 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
 
         self.assert_feature('GridScaleTestMedium')
+        self.build_access_feature('GridScaleTestMediumAccess')
         (pslots,dslots) = self.build_execute_feature('GridScaleTestMediumExecute', n_startd=50, n_slots=1, n_dynamic=8)
 
         # define features on the given groups
-        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestMedium', 'GridScaleTestMediumExecute'], ['GridScaleTestMedium'])
+        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestMedium', 'GridScaleTestMediumAccess', 'GridScaleTestMediumExecute'], ['GridScaleTestMedium'])
 
         # This is my subversive technique for ensuring that my target systems restart
         self.tag_test_feature('GridScaleTestMedium', 'GRID_SCALE_TEST_RESTART_TAG')
@@ -343,10 +345,11 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
 
         self.assert_feature('GridScaleTestLarge')
+        self.build_access_feature('GridScaleTestLargeAccess')
         (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=50, n_slots=1, n_dynamic=8)
 
         # define features on the given groups
-        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeExecute'], ['GridScaleTestLarge'])
+        self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeAccess', 'GridScaleTestLargeExecute'], ['GridScaleTestLarge'])
 
         # This is my subversive technique for ensuring that my target systems restart
         self.tag_test_feature('GridScaleTestLarge', 'GRID_SCALE_TEST_RESTART_TAG')
