@@ -19,6 +19,7 @@ parser.add_argument('-P', '--password', dest='passwd', default='', metavar='<pas
 parser.add_argument('-U', '--user', dest='username', default='', metavar='<username>')
 parser.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI', metavar='<mech-name(s)>')
 parser.add_argument('-p', '--package', dest='package', default='com.redhat.grid.config', metavar='<package-name>')
+parser.add_argument('-c', '--collector', dest='collector_addr', default=None, metavar='<host>')
 parser.add_argument('--no-restore', dest='no_restore', action='store_true', default=False, help='do not restore pre-test config')
 parser.add_argument('--preload-snapshot', dest='preload_snapshot', default=None, metavar='<snapshot-name>')
 
@@ -33,6 +34,7 @@ def init(p):
     # At the moment I don't feel sure what the semantics would be for allowing multiple init calls
     if params is not None: raise Exception("params already initialized")
     params = p
+    if params.collector_addr is None: params.collector_addr = params.broker_addr
 
 
 def connect_to_wallaby(broker_addr='127.0.0.1', port=5672, username='', passwd='', mechanisms='ANONYMOUS PLAIN GSSAPI'):
@@ -435,7 +437,7 @@ class condor_unit_test(unittest.TestCase):
     def build_access_feature(self, feature_name, collector_host=None):
         self.assert_feature(feature_name)
 
-        if collector_host==None: collector_host = self.params.broker_addr
+        if collector_host==None: collector_host = self.params.collector_addr
         sys.stdout.write("building access feature %s\n"%(feature_name))
 
         params={}
