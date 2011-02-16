@@ -181,7 +181,7 @@ class condor_unit_test(unittest.TestCase):
             self.feat_names += [feature_name]
 
 
-    def assert_group_features(self, feature_names, group_names):
+    def assert_group_features(self, feature_names, group_names, mod_op='replace'):
         # ensure these actually exist
         for grp in group_names:
             if not grp in self.group_names:
@@ -198,13 +198,13 @@ class condor_unit_test(unittest.TestCase):
         # apply feature list to group
         for name in group_names:
             group_obj = WallabyHelpers.get_group(self.session, self.config_store, name)
-            result = group_obj.modifyFeatures('replace', feature_names, {})
+            result = group_obj.modifyFeatures(mod_op, feature_names, {})
             if result.status != 0:
                 sys.stderr.write("Failed to set features for %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
 
 
-    def assert_node_features(self, feature_names, node_names):
+    def assert_node_features(self, feature_names, node_names, mod_op='replace'):
         for feat in feature_names:
             if not feature_name in self.feat_names: raise Exception("Feature %s not in config store" % (feat))
 
@@ -213,17 +213,17 @@ class condor_unit_test(unittest.TestCase):
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, name)
             group_name = WallabyHelpers.get_id_group_name(node_obj, self.session)
             group_obj = WallabyHelpers.get_group(self.session, self.config_store, group_name)
-            result = group_obj.modifyFeatures('replace', feature_names, {})
+            result = group_obj.modifyFeatures(mod_op, feature_names, {})
             if result.status != 0:
                 sys.stderr.write("Failed to set features for %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
 
 
-    def assert_node_groups(self, group_names, node_names):
+    def assert_node_groups(self, group_names, node_names, mod_op='replace'):
         # apply the groups to the nodes
         for name in node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, name)
-            result = node_obj.modifyMemberships('replace', group_names, {})
+            result = node_obj.modifyMemberships(mod_op, group_names, {})
             if result.status != 0:
                 sys.stderr.write("Failed to set groups for %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
