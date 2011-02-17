@@ -106,6 +106,8 @@ class condor_unit_test(unittest.TestCase):
         self.setup = False
 
         self.devnull = open(os.devnull, 'rw')
+        self.uname = os.uname()
+        self.hostname = self.uname[1]
 
         global params
         if params is None: raise Exception("params uninitialized -- call init() prior to setUp() method")
@@ -434,6 +436,22 @@ class condor_unit_test(unittest.TestCase):
         return r
 
 
+    def build_feature(self, feature_name, params={}, mod_op='replace'):
+        sys.stdout.write("building feature %s\n"%(feature_name))
+        self.assert_feature(feature_name)
+
+        # make sure parameters are declared
+        splist = params.keys()
+        splist.sort()
+        for p in splist: self.assert_param(p)
+
+        feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
+        result = feat_obj.modifyParams(mod_op, params, {})
+        if result.status != 0:
+            sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
+            raise WallabyStoreError("Failed to add feature")
+
+
     def build_access_feature(self, feature_name, collector_host=None):
         self.assert_feature(feature_name)
 
@@ -447,7 +465,9 @@ class condor_unit_test(unittest.TestCase):
         params["SEC_DEFAULT_AUTHENTICATION_METHODS"] = "CLAIMTOBE"
 
         # make sure parameters are declared
-        for p in params.keys(): self.assert_param(p)
+        splist = params.keys()
+        splist.sort()
+        for p in splist: self.assert_param(p)
 
         feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
         result = feat_obj.modifyParams('replace', params, {})

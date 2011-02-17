@@ -360,6 +360,17 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         # define groups on the given nodes
         self.assert_node_groups(['GridScaleTestLarge'], self.target_nodes)
 
+        # configure schedds
+        self.n_schedd = 2
+        self.build_scheduler_feature('GridScaleTestLargeSchedd', n_schedd=self.n_schedd)
+
+        # make sure I can fetch logs/history from CM
+        self.build_feature('GridScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"200000000"})
+
+        # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
+        self.assert_group_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch'], ['GridScaleTestLargeCM'])
+        self.assert_node_groups(['GridScaleTestLargeCM'], [self.params.collector_addr], mod_op='add')
+
         # snapshot this test config
         self.take_snapshot("grid_scale_%s_large_test" % (self.testdate))
 
