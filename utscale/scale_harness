@@ -346,7 +346,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
         self.assert_feature('GridScaleTestLarge')
         self.build_access_feature('GridScaleTestLargeAccess')
-        (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=50, n_slots=1, n_dynamic=8)
+        (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=50, n_slots=1, n_dynamic=8, dl_append=False)
 
         # define features on the given groups
         self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeAccess', 'GridScaleTestLargeExecute'], ['GridScaleTestLarge'])

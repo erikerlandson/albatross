@@ -476,7 +476,7 @@ class condor_unit_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add feature")
 
 
-    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0):
+    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, dl_append=True):
         self.assert_feature(feature_name)
 
         sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
@@ -507,10 +507,11 @@ class condor_unit_test(unittest.TestCase):
             params["NUM_SLOTS"] = "%d"%(n_slots)
             params["NUM_CPUS"] = "%d"%(n_slots)
 
-        daemon_list = ">= "
+        if dl_append: daemon_list = ">= "
+        else:         daemon_list = "MASTER"
         for s in xrange(n_startd):
             tag = "ST%03d"%(s)
-            if s > 0: daemon_list += ","
+            if (s > 0) or not dl_append: daemon_list += ","
             daemon_list += "STARTD_%s"%(tag)
             params["STARTD_%s"%(tag)] = "$(STARTD)"
             params["STARTD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
@@ -535,15 +536,16 @@ class condor_unit_test(unittest.TestCase):
         return (tslots, tslots * n_dynamic)
 
 
-    def build_scheduler_feature(self, feature_name, n_schedd=1):
+    def build_scheduler_feature(self, feature_name, n_schedd=1, dl_append=True):
         sys.stdout.write("building scheduler feature %s with %d schedds\n"%(feature_name, n_schedd))
         self.assert_feature(feature_name)
 
         params={}
-        daemon_list = ">= "
+        if dl_append: daemon_list = ">= "
+        else:         daemon_list = "MASTER"
         for s in xrange(n_schedd):
             tag = "SCH%03d"%(s)
-            if s > 0: daemon_list += ","
+            if (s > 0) or not dl_append: daemon_list += ","
             daemon_list += "SCHEDD_%s"%(tag)
             params["SCHEDD_%s"%(tag)] = "$(SCHEDD)"
             params["SCHEDD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
