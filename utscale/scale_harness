@@ -148,6 +148,8 @@ class grid_scale_test_small(utcondor.condor_unit_test):
 
 
     def test_submit_rate(self):
+        if self.params.setup_only: return
+        
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
@@ -176,6 +178,8 @@ class grid_scale_test_small(utcondor.condor_unit_test):
 
 
     def test_completion_rate(self):
+        if self.params.setup_only: return
+        
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
@@ -256,6 +260,8 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
 
 
     def test_submit_rate(self):
+        if self.params.setup_only: return
+        
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
@@ -295,6 +301,8 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
 
 
     def test_completion_rate(self):
+        if self.params.setup_only: return
+        
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
@@ -395,6 +403,8 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
 
     def test_submit_rate(self):
+        if self.params.setup_only: return
+        
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
@@ -406,7 +416,8 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -log -append '+CondorUnitTestTag=\"Large\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, j, j)
+            schedd_name = "SCH%03d@%s" % (j % self.n_schedd, self.params.collector_addr)
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -log -append '+CondorUnitTestTag=\"Large\"' -name '%s' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, schedd_name, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -417,7 +428,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         njobs = self.job_count(tag="Large")
         sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(njobs)/float(elapsed), nsub))
 
-        self.remove_jobs(tag="Large")
+        self.remove_jobs(tag="Large", schedd = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)])
         self.poll_for_empty_job_queue(tag="Large", interval=15, maxtime=3600)
 
         hfname = tempfile.mktemp(prefix="sh_hist_")
@@ -434,6 +445,8 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
 
     def test_completion_rate(self):
+        if self.params.setup_only: return
+        
         if not self.setup:
             sys.stderr.write("setup failed")
             raise Exception()
@@ -523,6 +536,7 @@ class grid_scale_test_4000(utcondor.condor_unit_test):
 if __name__ == "__main__":
     # inherit standard args from utcondor
     ha_parser = argparse.ArgumentParser(parents=[utcondor.parser])
+    ha_parser.add_argument('--setup-only', action='store_true', default=False, help='run test setup only: skip tests and do not restore config')
     # Tentatively, I don't think it's a good idea to run all test cases
     # So I'm making this a required positional param
     ha_parser.add_argument('test_name')
@@ -531,6 +545,7 @@ if __name__ == "__main__":
     args = ha_parser.parse_args()
 
     # initialize utcondor params
+    if args.setup_only: args.no_restore = True
     utcondor.init(args)
 
     # This provides nice default command-line facilities for running

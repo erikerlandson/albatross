@@ -329,14 +329,20 @@ class condor_unit_test(unittest.TestCase):
                 raise Exception("Exceeded max polling time")
 
 
-    def remove_jobs(self, cluster=None, tag=None, tagvar="CondorUnitTestTag"):
+    def remove_jobs(self, cluster=None, tag=None, tagvar="CondorUnitTestTag", schedd=[]):
         if cluster != None:
             rm_cmd = "condor_rm -constraint 'ClusterId==%d'" % (cluster)
         elif tag != None:
             rm_cmd = "condor_rm -constraint '%s==\"%s\"'" % (tagvar, tag)
         else:
             rm_cmd = "condor_rm -all"
-        subprocess.call(["/bin/sh", "-c", rm_cmd], stdout=self.devnull, stderr=self.devnull)
+        if len(schedd) <= 0:
+            subprocess.call(["/bin/sh", "-c", rm_cmd], stdout=self.devnull, stderr=self.devnull)
+        else:
+            for name in schedd:
+                rm_cmd_schedd = "%s -name '%s'" % (rm_cmd, name)
+                subprocess.call(["/bin/sh", "-c", rm_cmd_schedd], stdout=self.devnull, stderr=self.devnull)
+                
 
 
     def job_count(self, cluster=None, tag=None, tagvar="CondorUnitTestTag"):
