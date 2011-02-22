@@ -345,36 +345,38 @@ class condor_unit_test(unittest.TestCase):
                 
 
 
-    def job_count(self, cluster=None, tag=None, tagvar="CondorUnitTestTag"):
+    def job_count(self, cluster=None, tag=None, tagvar="CondorUnitTestTag", schedd=[], raise_on_err=False):
         if cluster != None:
-            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'| wc -l" % (cluster)
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'" % (cluster)
         elif tag != None:
-            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'| wc -l" % (tagvar, tag)
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'" % (tagvar, tag)
         else:
-            q_cmd = "condor_q -format \"%s\\n\" GlobalJobId | wc -l"
+            q_cmd = "condor_q -format \"%s\\n\" GlobalJobId"
 
-        try:
-            # get an initial job count.
-            res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
-            n = int(res)
-        except:
-            n = 0
+        if len(schedd) <= 0:
+            q_cmd += " | wc -l"
+            q_cmd_list = [q_cmd]
+        else:
+            q_cmd_list = [q_cmd + " -name '%s' | wc -l" % (s) for s in schedd]
+
+        n = 0
+        for q_cmd in q_cmd_list:
+            try:
+                res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
+                t = int(res)
+            except:
+                sys.stderr.write("job_count: exception on command:\n%s\n"%(q_cmd))
+                if raise_on_err: raise
+                t = 0
+            n += t
 
         return n
 
 
-    def poll_for_empty_job_queue(self, cluster=None, tag=None, tagvar="CondorUnitTestTag", interval=30, maxtime=600):
-        if cluster != None:
-            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'| wc -l" % (cluster)
-        elif tag != None:
-            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'| wc -l" % (tagvar, tag)
-        else:
-            q_cmd = "condor_q -format \"%s\\n\" GlobalJobId | wc -l"
-
+    def poll_for_empty_job_queue(self, cluster=None, tag=None, tagvar="CondorUnitTestTag", interval=30, maxtime=600, schedd=[]):
         try:
             # get an initial job count.
-            res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
-            n0 = int(res)
+            n0 = self.job_count(cluster=cluster, tag=tag, tagvar=tagvar, schedd=schedd, raise_on_err=True)
         except:
             n0 = 999999
         t0 = time.time()
@@ -387,8 +389,7 @@ class condor_unit_test(unittest.TestCase):
             sys.stdout.write("\n")
             time.sleep(interval)
             try:
-                res = subprocess.Popen(["/bin/sh", "-c", q_cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
-                n = int(res)
+                n = self.job_count(cluster=cluster, tag=tag, tagvar=tagvar, schedd=schedd, raise_on_err=True)
             except:
                 n = nL
             tC = time.time()

@@ -379,6 +379,8 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.assert_group_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch'], ['GridScaleTestLargeCM'])
         self.assert_node_groups(['GridScaleTestLargeCM'], [self.params.collector_addr], mod_op='add')
 
+        self.schedd_names = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)]
+
         # snapshot this test config
         self.take_snapshot("grid_scale_%s_large_test" % (self.testdate))
 
@@ -416,7 +418,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
-            schedd_name = "SCH%03d@%s" % (j % self.n_schedd, self.params.collector_addr)
+            schedd_name = self.schedd_names[j % self.n_schedd]
             cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -log -append '+CondorUnitTestTag=\"Large\"' -name '%s' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, schedd_name, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
@@ -425,11 +427,11 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         sys.stdout.write("Waiting for spawned submission processes to complete...\n")
         elapsed = self.poll_for_process_completion(submit_procs)
 
-        njobs = self.job_count(tag="Large")
+        njobs = self.job_count(tag="Large", schedd=self.schedd_names)
         sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(njobs)/float(elapsed), nsub))
 
-        self.remove_jobs(tag="Large", schedd = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)])
-        self.poll_for_empty_job_queue(tag="Large", interval=15, maxtime=3600)
+        self.remove_jobs(tag="Large", schedd = self.schedd_names)
+        self.poll_for_empty_job_queue(tag="Large", interval=15, maxtime=3600, schedd=self.schedd_names)
 
         hfname = tempfile.mktemp(prefix="sh_hist_")
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
