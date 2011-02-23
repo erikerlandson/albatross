@@ -498,7 +498,7 @@ class condor_unit_test(unittest.TestCase):
         params["WANT_VACATE"] = "FALSE"
         params["WANT_SUSPEND"] = "FALSE"
 
-        params["CLAIM_WORKLIFE"] = "0"
+        #params["CLAIM_WORKLIFE"] = "0"
         params["MAXJOBRETIREMENTTIME"] = "3600 * 24"
         params["PREEMPT"] = "FALSE"
         params["PREEMPTION_REQUIREMENTS"] = "FALSE"

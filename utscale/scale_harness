@@ -339,9 +339,9 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         # class specific setup goes after parent class
         qualified_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
         reporting_nodes = self.reporting_nodes()
-        candidate_nodes = list(set(qualified_nodes) & set(reporting_nodes))
+        candidate_nodes = list((set(qualified_nodes) & set(reporting_nodes))-set([self.hostname]))
 
-        self.ntarget = 10
+        self.ntarget = 15
         if len(candidate_nodes) < self.ntarget:
             sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
             sys.stderr.write("qualified but not reporting= %s\n" % (list(set(qualified_nodes) - set(reporting_nodes))))
@@ -354,7 +354,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
         self.assert_feature('GridScaleTestLarge')
         self.build_access_feature('GridScaleTestLargeAccess')
-        (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=50, n_slots=1, n_dynamic=8, dl_append=False)
+        (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=100, n_slots=1, n_dynamic=8, dl_append=False)
 
         # define features on the given groups
         self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeAccess', 'GridScaleTestLargeExecute'], ['GridScaleTestLarge'])
@@ -369,17 +369,16 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.assert_node_groups(['GridScaleTestLarge'], self.target_nodes)
 
         # configure schedds
-        self.n_schedd = 2
+        self.n_schedd = 25
         self.build_scheduler_feature('GridScaleTestLargeSchedd', n_schedd=self.n_schedd)
+        self.schedd_names = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)]
 
         # make sure I can fetch logs/history from CM
-        self.build_feature('GridScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"200000000"})
+        self.build_feature('GridScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"1000000000"})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
         self.assert_group_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch'], ['GridScaleTestLargeCM'])
         self.assert_node_groups(['GridScaleTestLargeCM'], [self.params.collector_addr], mod_op='add')
-
-        self.schedd_names = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)]
 
         # snapshot this test config
         self.take_snapshot("grid_scale_%s_large_test" % (self.testdate))
@@ -413,8 +412,8 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         # this unit test should pass
         duration = 15
         sustain = 300
-        nsub = 20
-        interval = 0.0
+        nsub = 500
+        interval = 0.90
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
@@ -431,7 +430,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(njobs)/float(elapsed), nsub))
 
         self.remove_jobs(tag="Large", schedd = self.schedd_names)
-        self.poll_for_empty_job_queue(tag="Large", interval=15, maxtime=3600, schedd=self.schedd_names)
+        self.poll_for_empty_job_queue(tag="Large", interval=30, maxtime=3600, schedd=self.schedd_names)
 
         hfname = tempfile.mktemp(prefix="sh_hist_")
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
