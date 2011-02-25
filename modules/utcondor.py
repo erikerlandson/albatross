@@ -208,14 +208,19 @@ class condor_unit_test(unittest.TestCase):
 
     def assert_node_features(self, feature_names, node_names, mod_op='replace'):
         for feat in feature_names:
-            if not feature_name in self.feat_names: raise Exception("Feature %s not in config store" % (feat))
+            if not feat in self.feat_names:
+                emsg = "Feature %s not in config store" % (feat)
+                raise Exception(emsg)
 
         # apply feature list to nodes
         for name in node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, name)
             group_name = WallabyHelpers.get_id_group_name(node_obj, self.session)
             group_obj = WallabyHelpers.get_group(self.session, self.config_store, group_name)
-            result = group_obj.modifyFeatures(mod_op, feature_names, {})
+            if mod_op == 'insert':
+                result = group_obj.modifyFeatures('replace', feature_names + group_obj.features, {})
+            else:
+                result = group_obj.modifyFeatures(mod_op, feature_names, {})
             if result.status != 0:
                 sys.stderr.write("Failed to set features for %s: (%d, %s)\n" % (name, result.status, result.text))
                 raise WallabyStoreError(result.text)
@@ -333,7 +338,7 @@ class condor_unit_test(unittest.TestCase):
         if cluster != None:
             rm_cmd = "condor_rm -constraint 'ClusterId==%d'" % (cluster)
         elif tag != None:
-            rm_cmd = "condor_rm -constraint '%s==\"%s\"'" % (tagvar, tag)
+            rm_cmd = "condor_rm -constraint '%s=?=\"%s\"'" % (tagvar, tag)
         else:
             rm_cmd = "condor_rm -all"
         if len(schedd) <= 0:
@@ -349,7 +354,7 @@ class condor_unit_test(unittest.TestCase):
         if cluster != None:
             q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'" % (cluster)
         elif tag != None:
-            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s==\"%s\"'" % (tagvar, tag)
+            q_cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s=?=\"%s\"'" % (tagvar, tag)
         else:
             q_cmd = "condor_q -format \"%s\\n\" GlobalJobId"
 
@@ -405,16 +410,38 @@ class condor_unit_test(unittest.TestCase):
             tL = tC
 
 
-    def reporting_nodes(self, with_groups=None):
+    def format_opt_list(self, attr_list):
+        n = len(attr_list)
+        flist = []
+        for j in xrange(n):
+            fmt = "'"
+            if j > 0: fmt += '\t'
+            fmt += '%s'
+            if j == (n-1): fmt += '\n'
+            fmt += "'"
+            flist += ['-format %s %s' % (fmt, attr_list[j])]
+        return flist
+
+
+    def reporting_nodes(self, with_groups=None, with_attr=None):
         if with_groups == None: with_groups = []
         elif isinstance(with_groups, str): with_groups = [with_groups]
         elif isinstance(with_groups, set): with_groups = list(with_groups)
-        
         cexpr = " && ".join(["stringListMember(\"%s\", WallabyGroups)" % (g) for g in with_groups])
+        
+        if with_attr == None: with_attr = []
+        elif isinstance(with_attr, str): with_attr = [with_attr]
+        elif isinstance(with_attr, set): with_attr = list(with_attr)
+        fopt = " ".join(self.format_opt_list(with_attr))
+
         cmd = "condor_status -master"
+        if fopt != "": cmd += " %s" % (fopt)
         if cexpr != "": cmd += " -constraint '%s'" % (cexpr)
         res = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
-        nlist = res.split()
+
+        res = res.strip('\n')
+        nlist = res.split('\n')
+        if len(with_attr) > 0: nlist = [x.split('\t') for x in nlist]
         return nlist
 
 

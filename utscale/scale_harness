@@ -336,12 +336,18 @@ class grid_scale_test_large(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise
 
+        self.ntarget = 10
+        self.n_startd = 50
+        self.n_slots = 1
+        self.n_dynamic = 8
+        self.n_schedd = 25
+        
         # class specific setup goes after parent class
+        reporting_nodes = self.reporting_nodes(with_attr=['Machine', 'CondorPlatform'])
+        reporting_nodes = [x[0] for x in reporting_nodes if (x[1].rfind('LINUX') >= 0)]
         qualified_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
-        reporting_nodes = self.reporting_nodes()
         candidate_nodes = list((set(qualified_nodes) & set(reporting_nodes))-set([self.hostname]))
 
-        self.ntarget = 15
         if len(candidate_nodes) < self.ntarget:
             sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
             sys.stderr.write("qualified but not reporting= %s\n" % (list(set(qualified_nodes) - set(reporting_nodes))))
@@ -354,7 +360,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
         self.assert_feature('GridScaleTestLarge')
         self.build_access_feature('GridScaleTestLargeAccess')
-        (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=100, n_slots=1, n_dynamic=8, dl_append=False)
+        (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=self.n_startd, n_slots=self.n_slots, n_dynamic=self.n_dynamic, dl_append=False)
 
         # define features on the given groups
         self.assert_group_features(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeAccess', 'GridScaleTestLargeExecute'], ['GridScaleTestLarge'])
@@ -369,16 +375,17 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.assert_node_groups(['GridScaleTestLarge'], self.target_nodes)
 
         # configure schedds
-        self.n_schedd = 25
         self.build_scheduler_feature('GridScaleTestLargeSchedd', n_schedd=self.n_schedd)
         self.schedd_names = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)]
 
         # make sure I can fetch logs/history from CM
         self.build_feature('GridScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"1000000000"})
 
+        # miscellaneous settings
+        self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"300", "SCHEDD_DEBUG":"D_COMMAND", "MAX_SCHEDD_LOG":"100000000"})
+
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_group_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch'], ['GridScaleTestLargeCM'])
-        self.assert_node_groups(['GridScaleTestLargeCM'], [self.params.collector_addr], mod_op='add')
+        self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg'], [self.params.collector_addr], mod_op='insert')
 
         # snapshot this test config
         self.take_snapshot("grid_scale_%s_large_test" % (self.testdate))
@@ -390,7 +397,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
         # before we leave set-up, make sure activation and restart are complete
         try:
-            self.poll_for_slots(self.ntarget*pslots, group='GridScaleTestLarge', interval=15, maxtime=300, expected_nodes=self.target_nodes)
+            self.poll_for_slots(self.ntarget*pslots, group='GridScaleTestLarge', interval=30, maxtime=600, expected_nodes=self.target_nodes, required=int(0.9*(self.ntarget*pslots)))
         except:
             pass
         else:
@@ -410,15 +417,15 @@ class grid_scale_test_large(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        duration = 15
-        sustain = 300
-        nsub = 500
-        interval = 0.90
+        sustain = 330
+        nsub = 100
+        interval = 0.2
+        duration = 360
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
             schedd_name = self.schedd_names[j % self.n_schedd]
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -log -append '+CondorUnitTestTag=\"Large\"' -name '%s' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, schedd_name, j, j)
+            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'FALSE && stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Large\"' -name '%s' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, schedd_name, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -427,9 +434,9 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         elapsed = self.poll_for_process_completion(submit_procs)
 
         njobs = self.job_count(tag="Large", schedd=self.schedd_names)
-        sys.stdout.write("elapsed time = %s  sustained rate = %f  with %d submitters\n" % (elapsed, float(njobs)/float(elapsed), nsub))
+        sys.stdout.write("elapsed time= %s  njobs= %d  sustained rate= %f  submitters= %d\n" % (elapsed, njobs, float(njobs)/float(elapsed), nsub))
 
-        self.remove_jobs(tag="Large", schedd = self.schedd_names)
+        self.remove_jobs(tag="Large", schedd=self.schedd_names)
         self.poll_for_empty_job_queue(tag="Large", interval=30, maxtime=3600, schedd=self.schedd_names)
 
         hfname = tempfile.mktemp(prefix="sh_hist_")
