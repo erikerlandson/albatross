@@ -575,6 +575,7 @@ class condor_unit_test(unittest.TestCase):
         self.assert_feature(feature_name)
 
         params={}
+        params["USE_PROCD"] = "FALSE"
         if dl_append: daemon_list = ">= "
         else:         daemon_list = "MASTER"
         for s in xrange(n_schedd):

@@ -336,6 +336,9 @@ class grid_scale_test_large(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise
 
+        self.tmpdir = tempfile.mkdtemp(prefix='sh_large_')
+        sys.stdout.write("working-directory= %s\n" % self.tmpdir)
+
         self.ntarget = 10
         self.n_startd = 50
         self.n_slots = 1
@@ -381,11 +384,14 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         # make sure I can fetch logs/history from CM
         self.build_feature('GridScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"1000000000"})
 
+        # turn off plugins
+        self.build_feature('GridScaleTestLargeNoPlugins', params={"MASTER.PLUGINS":"", "SCHEDD.PLUGINS":"", "COLLECTOR.PLUGINS":"", "NEGOTIATOR.PLUGINS":"", "STARTD.PLUGINS":""})
+
         # miscellaneous settings
-        self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"300", "SCHEDD_DEBUG":"D_COMMAND", "MAX_SCHEDD_LOG":"100000000"})
+        self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"600", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"0", "NEGOTIATOR_DEBUG":"", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":""})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg'], [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins'], [self.params.collector_addr], mod_op='insert')
 
         # snapshot this test config
         self.take_snapshot("grid_scale_%s_large_test" % (self.testdate))
@@ -417,15 +423,15 @@ class grid_scale_test_large(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        sustain = 330
-        nsub = 100
-        interval = 0.2
+        sustain = 300
+        nsub = 500
+        interval = 1.0
         duration = 360
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
             schedd_name = self.schedd_names[j % self.n_schedd]
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'FALSE && stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Large\"' -name '%s' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, schedd_name, j, j)
+            cjs_command = "~/git/condor_tools/bin/cjs -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'FALSE && stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Large\"' -name '%s' >'%s/sh_out%03d' 2>'%s/sh_err%03d'" % (self.tmpdir, duration, j, interval, sustain, schedd_name, self.tmpdir, j, self.tmpdir, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -444,6 +450,10 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
         sys.stdout.write("submissions:\n")
         subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions"%(hfname, int(sincetime))])
+        sys.stdout.write("submissions rate:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -rate"%(hfname, int(sincetime))])
+        sys.stdout.write("submissions cum:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum"%(hfname, int(sincetime))])
         sys.stdout.write("submissions cum rate:\n")
         subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate"%(hfname, int(sincetime))])
         sys.stdout.write("completions:\n")
