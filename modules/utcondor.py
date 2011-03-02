@@ -513,7 +513,7 @@ class condor_unit_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add feature")
 
 
-    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, dl_append=True):
+    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, dl_append=True, dedicated=True, preemption=False):
         sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
         sys.stdout.flush()
 
@@ -522,19 +522,20 @@ class condor_unit_test(unittest.TestCase):
         params={}
         params["USE_PROCD"] = "FALSE"
 
-        params["START"] = "TRUE"
-        params["SUSPEND"] = "FALSE"
-        params["KILL"] = "FALSE"
-        params["CONTINUE"] = "TRUE"
-        params["WANT_VACATE"] = "FALSE"
-        params["WANT_SUSPEND"] = "FALSE"
+        if dedicated:
+            params["START"] = "TRUE"
+            params["SUSPEND"] = "FALSE"
+            params["KILL"] = "FALSE"
+            params["CONTINUE"] = "TRUE"
+            params["WANT_VACATE"] = "FALSE"
+            params["WANT_SUSPEND"] = "FALSE"
 
-        #params["CLAIM_WORKLIFE"] = "0"
-        params["MAXJOBRETIREMENTTIME"] = "3600 * 24"
-        params["PREEMPT"] = "FALSE"
-        params["PREEMPTION_REQUIREMENTS"] = "FALSE"
-        params["RANK"] = "0"
-        params["NEGOTIATOR_CONSIDER_PREEMPTION"] = "FALSE"
+        if not preemption:
+            params["MAXJOBRETIREMENTTIME"] = "3600 * 24"
+            params["PREEMPT"] = "FALSE"
+            params["PREEMPTION_REQUIREMENTS"] = "FALSE"
+            params["RANK"] = "0"
+            params["NEGOTIATOR_CONSIDER_PREEMPTION"] = "FALSE"
 
         if n_dynamic > 0:
             params["SLOT_TYPE_1"] = "cpus=%d"%(n_dynamic)
