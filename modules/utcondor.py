@@ -610,3 +610,6 @@ class condor_unit_test(unittest.TestCase):
         if result.status != 0:
             sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
             raise WallabyStoreError("Failed to add feature")
+
+    def runTest(self):
+        pass

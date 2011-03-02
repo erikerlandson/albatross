@@ -39,15 +39,9 @@ args.no_restore = True
 # initialize utcondor params
 utcondor.init(args)
 
-class exfeat(utcondor.condor_unit_test):
-    def setUp(self):
-        utcondor.condor_unit_test.setUp(self)
-        self.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption)
+ut = utcondor.condor_unit_test()
+ut.setUp()
 
-    def tearDown(self):
-        utcondor.condor_unit_test.tearDown(self)
+ut.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption)
 
-    def test(self):
-        pass
-
-unittest.main(argv=[sys.argv[0], "exfeat.test"])
+ut.tearDown()
