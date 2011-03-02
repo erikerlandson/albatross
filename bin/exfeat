@@ -1,0 +1,53 @@
+#!/usr/bin/python
+
+import sys, os, os.path, string, glob, math
+import random
+import time
+import datetime
+import tempfile
+import subprocess
+import unittest
+import argparse
+import StringIO
+
+# If we're using this directly from the albatross repo, we can find repo modules here:
+if sys.path[0] != '':
+    modules_dir = '%s/../modules' % (sys.path[0])
+else:
+    modules_dir='../modules'
+sys.path += [modules_dir]
+
+# import albatross repo modules
+import utcondor
+
+# inherit standard args from utcondor
+parser = argparse.ArgumentParser(parents=[utcondor.parser])
+parser.add_argument('--feature', required=True, metavar='<name>', help='name of new execute feature')
+parser.add_argument('--nstartd', type=int, metavar='<n>', default=1)
+parser.add_argument('--nslots', type=int, metavar='<n>', default=1)
+parser.add_argument('--ndynamic', type=int, metavar='<n>', default=0)
+parser.add_argument('--no-append', action='store_false', default=True, dest='append', help='do not append to DAEMON_LIST: overwrite')
+parser.add_argument('--no-dedicated', action='store_false', default=True, dest='dedicated', help='do not declare dedicated node behavior')
+parser.add_argument('--preemption', action='store_true', default=False, dest='preemption', help='do not disable preemption')
+
+# parse args from command line
+args = parser.parse_args()
+
+# in this use case, we don't want to support restore
+args.no_restore = True
+
+# initialize utcondor params
+utcondor.init(args)
+
+class exfeat(utcondor.condor_unit_test):
+    def setUp(self):
+        utcondor.condor_unit_test.setUp(self)
+        self.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption)
+
+    def tearDown(self):
+        utcondor.condor_unit_test.tearDown(self)
+
+    def test(self):
+        pass
+
+unittest.main(argv=[sys.argv[0], "exfeat.test"])
