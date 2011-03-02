@@ -472,6 +472,8 @@ class condor_unit_test(unittest.TestCase):
 
     def build_feature(self, feature_name, params={}, mod_op='replace'):
         sys.stdout.write("building feature %s\n"%(feature_name))
+        sys.stdout.flush()
+
         self.assert_feature(feature_name)
 
         # make sure parameters are declared
@@ -487,10 +489,11 @@ class condor_unit_test(unittest.TestCase):
 
 
     def build_access_feature(self, feature_name, collector_host=None):
-        self.assert_feature(feature_name)
-
         if collector_host==None: collector_host = self.params.collector_addr
         sys.stdout.write("building access feature %s\n"%(feature_name))
+        sys.stdout.flush()
+
+        self.assert_feature(feature_name)
 
         params={}
         params["COLLECTOR_HOST"] = collector_host
@@ -511,9 +514,10 @@ class condor_unit_test(unittest.TestCase):
 
 
     def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, dl_append=True):
-        self.assert_feature(feature_name)
-
         sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
+        sys.stdout.flush()
+
+        self.assert_feature(feature_name)
 
         params={}
         params["USE_PROCD"] = "FALSE"
@@ -572,6 +576,8 @@ class condor_unit_test(unittest.TestCase):
 
     def build_scheduler_feature(self, feature_name, n_schedd=1, dl_append=True):
         sys.stdout.write("building scheduler feature %s with %d schedds\n"%(feature_name, n_schedd))
+        sys.stdout.flush()
+        
         self.assert_feature(feature_name)
 
         params={}
