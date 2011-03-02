@@ -549,14 +549,17 @@ class condor_unit_test(unittest.TestCase):
         if dl_append: daemon_list = ">= "
         else:         daemon_list = "MASTER"
         for s in xrange(n_startd):
-            tag = "ST%03d"%(s)
+            tag = "%03d"%(s)
             if (s > 0) or not dl_append: daemon_list += ","
-            daemon_list += "STARTD_%s"%(tag)
-            params["STARTD_%s"%(tag)] = "$(STARTD)"
-            params["STARTD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
-            params["STARTD.%s.STARTD_NAME"%(tag)] = "%s"%(tag)
-            params["STARTD.%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.%s-address"%(tag)
-            params["STARTD.%s.STARTD_LOG"%(tag)] = "$(LOG)/%s_Log"%(tag)
+            daemon_list += "STARTD%s"%(tag)
+            params["STARTD%s"%(tag)] = "$(STARTD)"
+            params["STARTD%s_ARGS"%(tag)] = "-f -local-name startd%s"%(tag)
+            params["STARTD%s.STARTD_NAME"%(tag)] = "startd%s"%(tag)
+            params["STARTD%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.startd%s-address"%(tag)
+            params["STARTD%s.STARTD_LOG"%(tag)] = "$(LOG)/StartLog%s"%(tag)
+            #params["STARTD%s.EXECUTE"%(tag)] = "$(EXECUTE)%s"%(tag) 
+            params["STARTD%s.STARTD_ATTRS"%(tag)] = "$(STARTD_ATTRS), Machine"
+            params["STARTD%s.Machine"%(tag)] = "s%s.$(FULL_HOSTNAME)"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
 
