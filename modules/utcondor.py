@@ -513,7 +513,7 @@ class condor_unit_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add feature")
 
 
-    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, dl_append=True, dedicated=True, preemption=False):
+    def build_execute_feature(self, feature_name, n_startd=1, n_slots=1, n_dynamic=0, dl_append=True, dedicated=True, preemption=False, ad_machine=True):
         sys.stdout.write("building execute feature %s -- n_startd=%d  n_slots=%d  n_dynamic=%d\n"%(feature_name, n_startd, n_slots, n_dynamic))
         sys.stdout.flush()
 
@@ -557,9 +557,10 @@ class condor_unit_test(unittest.TestCase):
             params["STARTD%s.STARTD_NAME"%(tag)] = "startd%s"%(tag)
             params["STARTD%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.startd%s-address"%(tag)
             params["STARTD%s.STARTD_LOG"%(tag)] = "$(LOG)/StartLog%s"%(tag)
-            #params["STARTD%s.EXECUTE"%(tag)] = "$(EXECUTE)%s"%(tag) 
-            params["STARTD%s.STARTD_ATTRS"%(tag)] = "$(STARTD_ATTRS), Machine"
-            params["STARTD%s.Machine"%(tag)] = "s%s.$(FULL_HOSTNAME)"%(tag)
+            #params["STARTD%s.EXECUTE"%(tag)] = "$(EXECUTE)%s"%(tag)
+            if ad_machine:
+                params["STARTD%s.STARTD_ATTRS"%(tag)] = "$(STARTD_ATTRS), Machine"
+                params["STARTD%s.Machine"%(tag)] = "s%s.$(FULL_HOSTNAME)"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
 
