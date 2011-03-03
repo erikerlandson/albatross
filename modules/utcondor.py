@@ -13,15 +13,19 @@ from qmf.console import Session
 
 
 parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument('-b', '--broker', dest='broker_addr', default='127.0.0.1', metavar='<host>')
-parser.add_argument('-o', '--port', type=int, dest='port', default=5672, metavar='<port>')
-parser.add_argument('-P', '--password', dest='passwd', default='', metavar='<password>')
-parser.add_argument('-U', '--user', dest='username', default='', metavar='<username>')
-parser.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI', metavar='<mech-name(s)>')
-parser.add_argument('-p', '--package', dest='package', default='com.redhat.grid.config', metavar='<package-name>')
-parser.add_argument('-c', '--collector', dest='collector_addr', default=None, metavar='<host>')
-parser.add_argument('--no-restore', dest='no_restore', action='store_true', default=False, help='do not restore pre-test config')
-parser.add_argument('--preload-snapshot', dest='preload_snapshot', default=None, metavar='<snapshot-name>')
+
+grp = parser.add_argument_group(title="Wallaby Authentication")
+grp.add_argument('-b', '--broker', dest='broker_addr', default='127.0.0.1', metavar='<host>')
+grp.add_argument('-o', '--port', type=int, dest='port', default=5672, metavar='<port>')
+grp.add_argument('-P', '--password', dest='passwd', default='', metavar='<password>')
+grp.add_argument('-U', '--user', dest='username', default='', metavar='<username>')
+grp.add_argument('-m', '--auth-mechanism', dest='mechanisms', default='ANONYMOUS PLAIN GSSAPI', metavar='<mech-name(s)>')
+grp.add_argument('-p', '--package', dest='package', default='com.redhat.grid.config', metavar='<package-name>')
+
+grp = parser.add_argument_group(title="Condor Unit Testing")
+grp.add_argument('-c', '--collector', dest='collector_addr', default=None, metavar='<host>')
+grp.add_argument('--no-restore', dest='no_restore', action='store_true', default=False, help='do not restore pre-test config')
+grp.add_argument('--preload-snapshot', dest='preload_snapshot', default=None, metavar='<snapshot-name>')
 
 
 supported_api_versions = {20100804:0, 20100915:0, 20101031:1}
