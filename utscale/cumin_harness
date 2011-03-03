@@ -1,0 +1,206 @@
+#!/usr/bin/python
+
+import sys, os, os.path, string, glob, math
+import random
+import time
+import datetime
+import tempfile
+import subprocess
+import unittest
+import argparse
+import StringIO
+
+# If we're using this directly from the albatross repo, we can find repo modules here:
+if sys.path[0] != '':
+    modules_dir = '%s/../modules' % (sys.path[0])
+else:
+    modules_dir='../modules'
+sys.path += [modules_dir]
+
+# import albatross repo modules
+import utcondor
+
+
+# large scale test
+class cumin_scale_test_large(utcondor.condor_unit_test):
+    def setUp(self):
+        self.setup = False
+        try:
+            utcondor.condor_unit_test.setUp(self)
+        except:
+            sys.stderr.write("setup failed")
+            raise
+
+        self.tmpdir = tempfile.mkdtemp(prefix='ch_large_')
+        sys.stdout.write("working-directory= %s\n" % self.tmpdir)
+
+        self.ntarget = 10     # number of execute machines to build
+        self.n_startd = 50    # number of startd per machine
+        self.n_slots = 1      # number of slots per startd
+        self.n_dynamic = 8    # number of dynamic slots per main slot (0 for nondynamic)
+        self.n_schedd = 25    # number of schedds to run
+        
+        # class specific setup goes after parent class
+        reporting_nodes = self.reporting_nodes(with_attr=['Machine', 'CondorPlatform'])
+        reporting_nodes = [x[0] for x in reporting_nodes if (x[1].rfind('LINUX') >= 0)]
+        qualified_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
+        candidate_nodes = list((set(qualified_nodes) & set(reporting_nodes))-set([self.hostname]))
+
+        if len(candidate_nodes) < self.ntarget:
+            sys.stderr.write("%d nodes insufficient for this test\n" % (len(candidate_nodes)))
+            sys.stderr.write("qualified but not reporting= %s\n" % (list(set(qualified_nodes) - set(reporting_nodes))))
+            sys.stderr.write("reporting but not qualified= %s\n" % (list(set(reporting_nodes) - set(qualified_nodes))))
+            raise Exception()
+
+        # just take the first ones on the list
+        self.target_nodes = candidate_nodes[:self.ntarget]
+        sys.stdout.write("target_nodes: %s\n" % (self.target_nodes))
+
+        self.assert_feature('CuminScaleTestLarge')
+        self.build_access_feature('CuminScaleTestLargeAccess')
+        (pslots,dslots) = self.build_execute_feature('CuminScaleTestLargeExecute', n_startd=self.n_startd, n_slots=self.n_slots, n_dynamic=self.n_dynamic, dl_append=False)
+
+        # define features on the given groups
+        self.assert_group_features(['NodeAccess', 'Master', 'CuminScaleTestLarge', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeExecute'], ['CuminScaleTestLarge'])
+
+        # This is my subversive technique for ensuring that my target systems restart
+        self.tag_test_feature('CuminScaleTestLarge', 'GRID_SCALE_TEST_RESTART_TAG')
+
+        # Make sure all config is cleared from nodes
+        self.clear_nodes(self.target_nodes)
+
+        # define groups on the given nodes
+        self.assert_node_groups(['CuminScaleTestLarge'], self.target_nodes)
+
+        # configure schedds
+        self.build_scheduler_feature('CuminScaleTestLargeSchedd', n_schedd=self.n_schedd)
+        self.schedd_names = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)]
+
+        # make sure I can fetch logs/history from CM
+        self.build_feature('CuminScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"1000000000"})
+
+        # turn off plugins
+        self.build_feature('CuminScaleTestLargeNoPlugins', params={"MASTER.PLUGINS":"", "SCHEDD.PLUGINS":"", "COLLECTOR.PLUGINS":"", "NEGOTIATOR.PLUGINS":"", "STARTD.PLUGINS":""})
+
+        # miscellaneous settings
+        self.build_feature('CuminScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"600", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"0", "NEGOTIATOR_DEBUG":"", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":""})
+
+        # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
+        self.assert_node_features(['CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg', 'CuminScaleTestLargeNoPlugins'], [self.params.collector_addr], mod_op='insert')
+
+        # snapshot this test config
+        self.take_snapshot("cumin_scale_%s_large_test" % (self.testdate))
+
+        # Activate new config
+        result = self.config_store.activateConfiguration(_timeout=600)
+        if result.status != 0:
+            raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
+
+        # before we leave set-up, make sure activation and restart are complete
+        try:
+            self.poll_for_slots(self.ntarget*pslots, group='CuminScaleTestLarge', interval=30, maxtime=600, expected_nodes=self.target_nodes, required=int(0.9*(self.ntarget*pslots)))
+        except:
+            pass
+        else:
+            # flag that all setup succeeded
+            self.setup = True
+
+
+    def tearDown(self):
+        # class specific teardown goes before parent class
+        utcondor.condor_unit_test.tearDown(self)
+
+
+    def test_submit_rate(self):
+        if self.params.setup_only: return
+        
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise Exception()
+
+        sustain = 300    # sustain submission rate this long (sec)
+        nsub = 500       # number of submitters (and submission processes)
+        interval = 1.0   # interval between submissions (sec)
+        duration = 30    # duration of each job submitted (sec)
+        
+        submit_procs = []
+        sincetime=time.time()
+        for j in xrange(nsub):
+            schedd_name = self.schedd_names[j % self.n_schedd]
+            cjs_command = "~/git/condor_tools/bin/cjs -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"CuminScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"CuminLarge\"' -name '%s' >'%s/ch_out%03d' 2>'%s/ch_err%03d'" % (self.tmpdir, duration, j, interval, sustain, schedd_name, self.tmpdir, j, self.tmpdir, j)
+            sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
+            proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
+            submit_procs += [proc]
+
+        sys.stdout.write("Waiting for spawned submission processes to complete...\n")
+        elapsed = self.poll_for_process_completion(submit_procs)
+
+        njobs = self.job_count(tag="CuminLarge", schedd=self.schedd_names)
+        sys.stdout.write("elapsed time= %s  njobs= %d  sustained rate= %f  submitters= %d\n" % (elapsed, njobs, float(njobs)/float(elapsed), nsub))
+
+        self.remove_jobs(tag="CuminLarge", schedd=self.schedd_names)
+        self.poll_for_empty_job_queue(tag="CuminLarge", interval=30, maxtime=3600, schedd=self.schedd_names)
+
+        hfname = "%s/history" % (self.tmpdir)
+        subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
+
+        sys.stdout.write("submissions:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions"%(hfname, int(sincetime))])
+        sys.stdout.write("submissions rate:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -rate"%(hfname, int(sincetime))])
+        sys.stdout.write("submissions cum:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum"%(hfname, int(sincetime))])
+        sys.stdout.write("submissions cum rate:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate"%(hfname, int(sincetime))])
+        sys.stdout.write("completions:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        sys.stdout.write("completions cum rate:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
+
+
+    def test_completion_rate(self):
+        if self.params.setup_only: return
+        
+        if not self.setup:
+            sys.stderr.write("setup failed")
+            raise Exception()
+
+        njobs = 10000   # size of single job burst
+        nsub = 20       # number of submitters
+        duration = 30   # job duration (sec)
+
+        cjs_command = "~/git/condor_tools/bin/cjs -duration %d -n %d -sub %d -reqs 'stringListMember(\"CuminScaleTestLarge\", WallabyGroups)' -append '+CondorUnitTestTag=\"CuminLarge\"' >%s/ch_cr_out 2>%s/ch_cr_err" % (duration, njobs, nsub, self.tmpdir, self.tmpdir)
+
+        sincetime=time.time()
+        sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
+        proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
+        proc.wait()
+
+        # this waits for jobs to finish, and also measures completion rate
+        self.poll_for_empty_job_queue(tag = "CuminLarge", interval = 60, maxtime=3600)
+
+        hfname = "%s/cr_history" % (self.tmpdir)
+        subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
+
+        sys.stdout.write("completions:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        sys.stdout.write("completions cum rate:\n")
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
+
+
+if __name__ == "__main__":
+    # inherit standard args from utcondor
+    ha_parser = argparse.ArgumentParser(parents=[utcondor.parser])
+    ha_parser.add_argument('--setup-only', action='store_true', default=False, help='run test setup only: skip tests and do not restore config')
+    # Tentatively, I don't think it's a good idea to run all test cases
+    # So I'm making this a required positional param
+    ha_parser.add_argument('test_name')
+
+    # parse args from command line
+    args = ha_parser.parse_args()
+
+    # initialize utcondor params
+    if args.setup_only: args.no_restore = True
+    utcondor.init(args)
+
+    unittest.main(argv=[sys.argv[0], args.test_name])
