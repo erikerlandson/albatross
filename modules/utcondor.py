@@ -454,7 +454,7 @@ class condor_unit_test(unittest.TestCase):
         for node in self.node_names:
             node_obj = WallabyHelpers.get_node(self.session, self.config_store, node)
 
-            sys.stderr.write("    list_nodes: node=%s   checkin= %s\n" % (node, node_obj.last_checkin))
+            sys.stdout.write("    list_nodes: node=%s   checkin= %s\n" % (node, node_obj.last_checkin))
 
             if (checkin_since != None) and ((node_obj.last_checkin / 1000000) < checkin_since): continue
 
