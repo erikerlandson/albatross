@@ -564,7 +564,7 @@ class condor_unit_test(unittest.TestCase):
             #params["STARTD%s.EXECUTE"%(tag)] = "$(EXECUTE)%s"%(tag)
             if ad_machine:
                 params["STARTD%s.STARTD_ATTRS"%(tag)] = "$(STARTD_ATTRS), Machine"
-                params["STARTD%s.Machine"%(tag)] = "s%s.$(FULL_HOSTNAME)"%(tag)
+                params["STARTD%s.Machine"%(tag)] = "\"s%s.$(FULL_HOSTNAME)\""%(tag)
 
         params["DAEMON_LIST"] = daemon_list
 
