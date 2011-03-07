@@ -29,6 +29,7 @@ parser.add_argument('--ndynamic', type=int, metavar='<n>', default=0)
 parser.add_argument('--no-append', action='store_false', default=True, dest='append', help='do not append to DAEMON_LIST: overwrite')
 parser.add_argument('--no-dedicated', action='store_false', default=True, dest='dedicated', help='do not declare dedicated node behavior')
 parser.add_argument('--preemption', action='store_true', default=False, dest='preemption', help='do not disable preemption')
+parser.add_argument('--no-ad-machine', action='store_false', default=True, dest='ad_machine', help='do not advertise special multi-startd machine names')
 
 # parse args from command line
 args = parser.parse_args()
@@ -42,6 +43,6 @@ utcondor.init(args)
 ut = utcondor.condor_unit_test()
 ut.setUp()
 
-ut.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption)
+ut.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption, ad_machine=args.ad_machine)
 
 ut.tearDown()
