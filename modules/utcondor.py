@@ -492,14 +492,16 @@ class condor_unit_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add feature")
 
 
-    def build_access_feature(self, feature_name, collector_host=None):
-        if collector_host==None: collector_host = self.params.collector_addr
+    def build_access_feature(self, feature_name, collector_host=None, condor_host=None):
+        if condor_host==None: condor_host = self.params.collector_addr
+        if collector_host==None: collector_host = condor_host
         sys.stdout.write("building access feature %s\n"%(feature_name))
         sys.stdout.flush()
 
         self.assert_feature(feature_name)
 
         params={}
+        params["CONDOR_HOST"] = condor_host
         params["COLLECTOR_HOST"] = collector_host
         params["ALLOW_WRITE"] = "*"
         params["ALLOW_READ"] = "*"
