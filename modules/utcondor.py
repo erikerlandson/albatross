@@ -591,19 +591,22 @@ class condor_unit_test(unittest.TestCase):
         
         self.assert_feature(feature_name)
 
+        schedd_names = []
         params={}
         params["USE_PROCD"] = "FALSE"
         if dl_append: daemon_list = ">= "
         else:         daemon_list = "MASTER"
         for s in xrange(n_schedd):
-            tag = "SCH%03d"%(s)
+            tag = "%03d"%(s)
             if (s > 0) or not dl_append: daemon_list += ","
-            daemon_list += "SCHEDD_%s"%(tag)
-            params["SCHEDD_%s"%(tag)] = "$(SCHEDD)"
-            params["SCHEDD_%s_ARGS"%(tag)] = "-f -local-name %s"%(tag)
-            params["SCHEDD.%s.SCHEDD_NAME"%(tag)] = "%s"%(tag)
-            params["SCHEDD.%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.%s-address"%(tag)
-            params["SCHEDD.%s.SCHEDD_LOG"%(tag)] = "$(LOG)/%s_Log"%(tag)
+            sname = "schedd%s"%(tag)
+            schedd_names += [sname]
+            daemon_list += "SCHEDD%s"%(tag)
+            params["SCHEDD%s"%(tag)] = "$(SCHEDD)"
+            params["SCHEDD%s_ARGS"%(tag)] = "-f -local-name %s"%(sname)
+            params["SCHEDD%s.SCHEDD_NAME"%(tag)] = sname
+            params["SCHEDD%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.schedd%s-address"%(tag)
+            params["SCHEDD%s.SCHEDD_LOG"%(tag)] = "$(LOG)/SchedLog%s"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
 
@@ -617,6 +620,9 @@ class condor_unit_test(unittest.TestCase):
         if result.status != 0:
             sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
             raise WallabyStoreError("Failed to add feature")
+
+        return schedd_names
+
 
     def runTest(self):
         pass
