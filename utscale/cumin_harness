@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
 import sys, os, os.path, string, glob, math
 import random
@@ -151,18 +151,21 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         hfname = "%s/history" % (self.tmpdir)
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
 
+        hofsub = "%s/hofsub.dat" % (self.tmpdir)
         sys.stdout.write("submissions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -hof-out %s"%(hfname, int(sincetime), hofsub)])
         sys.stdout.write("submissions rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -rate -hof %s"%(hfname, int(sincetime), hofsub)])
         sys.stdout.write("submissions cum:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -hof %s"%(hfname, int(sincetime), hofsub)])
         sys.stdout.write("submissions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate -hof %s"%(hfname, int(sincetime), hofsub)])
+
+        hofcpl = "%s/hofcpl.dat" % (self.tmpdir)
         sys.stdout.write("completions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -hof-out %s"%(hfname, int(sincetime), hofcpl)])
         sys.stdout.write("completions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate -hof %s"%(hfname, int(sincetime), hofcpl)])
 
 
     def test_completion_rate(self):
