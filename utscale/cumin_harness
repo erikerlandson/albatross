@@ -75,8 +75,8 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         self.assert_node_groups(['CuminScaleTestLarge'], self.target_nodes)
 
         # configure schedds
-        self.build_scheduler_feature('CuminScaleTestLargeSchedd', n_schedd=self.n_schedd)
-        self.schedd_names = ["SCH%03d@%s" % (j, self.params.collector_addr) for j in xrange(self.n_schedd)]
+        schedd_names = self.build_scheduler_feature('CuminScaleTestLargeSchedd', n_schedd=self.n_schedd)
+        self.schedd_names = ["%s@%s" % (x, self.params.collector_addr) for x in schedd_names]
 
         # make sure I can fetch logs/history from CM
         self.build_feature('CuminScaleTestLargeFetch', params={"ALLOW_ADMINISTRATOR":">= %s"%(self.hostname), "MAX_HISTORY_LOG":"1000000000"})
