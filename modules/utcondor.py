@@ -556,14 +556,15 @@ class condor_unit_test(unittest.TestCase):
         else:         daemon_list = "MASTER"
         for s in xrange(n_startd):
             tag = "%03d"%(s)
+            locname = "STARTD%s"%(tag)
             if (s > 0) or not dl_append: daemon_list += ","
             daemon_list += "STARTD%s"%(tag)
             params["STARTD%s"%(tag)] = "$(STARTD)"
-            params["STARTD%s_ARGS"%(tag)] = "-f -local-name startd%s"%(tag)
-            params["STARTD%s.STARTD_NAME"%(tag)] = "startd%s"%(tag)
-            params["STARTD%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.startd%s-address"%(tag)
-            params["STARTD%s.STARTD_LOG"%(tag)] = "$(LOG)/StartLog%s"%(tag)
-            #params["STARTD%s.EXECUTE"%(tag)] = "$(EXECUTE)%s"%(tag)
+            params["STARTD%s_ARGS"%(tag)] = "-f -local-name %s"%(locname)
+            params["STARTD.%s.STARTD_NAME"%(locname)] = locname
+            params["STARTD.%s.STARTD_ADDRESS_FILE"%(locname)] = "$(LOG)/.startd%s-address"%(tag)
+            params["STARTD.%s.STARTD_LOG"%(locname)] = "$(LOG)/StartLog%s"%(tag)
+            #params["STARTD.%s.EXECUTE"%(locname)] = "$(EXECUTE)/%s"%(locname)
             if ad_machine:
                 params["STARTD%s.STARTD_ATTRS"%(tag)] = "$(STARTD_ATTRS), Machine"
                 params["STARTD%s.Machine"%(tag)] = "\"s%s.$(FULL_HOSTNAME)\""%(tag)
@@ -598,15 +599,15 @@ class condor_unit_test(unittest.TestCase):
         else:         daemon_list = "MASTER"
         for s in xrange(n_schedd):
             tag = "%03d"%(s)
+            locname = "SCHEDD%s"%(tag)
+            schedd_names += [locname]
             if (s > 0) or not dl_append: daemon_list += ","
-            sname = "schedd%s"%(tag)
-            schedd_names += [sname]
             daemon_list += "SCHEDD%s"%(tag)
             params["SCHEDD%s"%(tag)] = "$(SCHEDD)"
-            params["SCHEDD%s_ARGS"%(tag)] = "-f -local-name %s"%(sname)
-            params["SCHEDD%s.SCHEDD_NAME"%(tag)] = sname
-            params["SCHEDD%s.ADDRESS_FILE"%(tag)] = "$(LOG)/.schedd%s-address"%(tag)
-            params["SCHEDD%s.SCHEDD_LOG"%(tag)] = "$(LOG)/SchedLog%s"%(tag)
+            params["SCHEDD%s_ARGS"%(tag)] = "-f -local-name %s"%(locname)
+            params["SCHEDD.%s.SCHEDD_NAME"%(locname)] = locname
+            params["SCHEDD.%s.SCHEDD_ADDRESS_FILE"%(locname)] = "$(LOG)/.schedd%s-address"%(tag)
+            params["SCHEDD.%s.SCHEDD_LOG"%(locname)] = "$(LOG)/SchedLog%s"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
 
