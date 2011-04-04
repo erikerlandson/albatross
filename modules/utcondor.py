@@ -606,8 +606,9 @@ class condor_unit_test(unittest.TestCase):
             params["SCHEDD%s"%(tag)] = "$(SCHEDD)"
             params["SCHEDD%s_ARGS"%(tag)] = "-f -local-name %s"%(locname)
             params["SCHEDD.%s.SCHEDD_NAME"%(locname)] = locname
-            params["SCHEDD.%s.SCHEDD_ADDRESS_FILE"%(locname)] = "$(LOG)/.schedd%s-address"%(tag)
             params["SCHEDD.%s.SCHEDD_LOG"%(locname)] = "$(LOG)/SchedLog%s"%(tag)
+            params["SCHEDD.%s.SCHEDD_ADDRESS_FILE"%(locname)] = "$(LOG)/.schedd%s-address"%(tag)
+            #params["SCHEDD.%s.SCHEDD_DAEMON_AD_FILE"%(locname)] = "$(LOG)/.schedd%s-daemon-ad"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
 
@@ -623,6 +624,45 @@ class condor_unit_test(unittest.TestCase):
             raise WallabyStoreError("Failed to add feature")
 
         return schedd_names
+
+
+    def build_collector_feature(self, feature_name, n_coll=1, portstart=10000, dl_append=True):
+        sys.stdout.write("building collector feature %s with %d sub-collectors\n"%(feature_name, n_coll))
+        sys.stdout.flush()
+        
+        self.assert_feature(feature_name)
+
+        collector_names = []
+        params={}
+        if dl_append: daemon_list = ">= "
+        else:         daemon_list = "MASTER"
+        for s in xrange(n_coll):
+            tag = "%03d"%(s)
+            port=portstart+s
+            locname = "COLLECTOR%s"%(tag)
+            collector_names += ["%s:%d"%(locname,port)]
+            if (s > 0) or not dl_append: daemon_list += ","
+            daemon_list += "COLLECTOR%s"%(tag)
+            params["COLLECTOR%s"%(tag)] = "$(COLLECTOR)"
+            params["COLLECTOR%s_ARGS"%(tag)] = "-f -p %d -local-name %s"%(port,locname)
+            params["COLLECTOR%s_ENVIRONMENT"%(tag)] = "_CONDOR_COLLECTOR_LOG=$(LOG)/CollectorLog%s"%(tag)
+            params["COLLECTOR.%s.COLLECTOR_NAME"%(locname)] = locname
+            params["COLLECTOR.%s.CONDOR_VIEW_HOST"%(locname)] = "$(COLLECTOR_HOST)"
+
+        params["DAEMON_LIST"] = daemon_list
+
+        # make sure parameters are declared
+        splist = params.keys()
+        splist.sort()
+        for p in splist: self.assert_param(p)
+
+        feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
+        result = feat_obj.modifyParams('replace', params, {})
+        if result.status != 0:
+            sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
+            raise WallabyStoreError("Failed to add feature")
+
+        return collector_names
 
 
     def runTest(self):

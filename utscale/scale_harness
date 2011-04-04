@@ -340,7 +340,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.n_startd = 50
         self.n_slots = 20
         self.n_dynamic = 0
-        self.n_schedd = 15
+        self.n_schedd = 10
         
         # class specific setup goes after parent class
         reporting_nodes = self.reporting_nodes(with_attr=['Machine', 'CondorPlatform'])
@@ -388,12 +388,12 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.build_feature('GridScaleTestLargeNoPlugins', params={"MASTER.PLUGINS":"", "SCHEDD.PLUGINS":"", "COLLECTOR.PLUGINS":"", "NEGOTIATOR.PLUGINS":"", "STARTD.PLUGINS":""})
 
         # miscellaneous settings
-        self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"D_ACCOUNTANT", "MAX_NEGOTIATOR_LOG":"100000000", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":""})
-        #self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":"", "NEGOTIATOR_PRE_JOB_RANK":"0", "NEGOTIATOR_POST_JOB_RANK":"0"})
+        self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"", "MAX_NEGOTIATOR_LOG":"100000000", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":"", "SHADOW_LOCK":"", "SHADOW_LOG":"", "NEGOTIATOR_PRE_JOB_RANK":"0", "NEGOTIATOR_POST_JOB_RANK":"0"})
+
+        self.build_feature('GridScaleTestLargeNoPreempt', params={"NEGOTIATOR_CONSIDER_PREEMPTION":"FALSE", "PREEMPTION_REQUIREMENTS":"FALSE", "RANK":"0"})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        #self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg'], [self.params.collector_addr], mod_op='insert')
-        self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins'], [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins', 'GridScaleTestLargeNoPreempt'], [self.params.collector_addr], mod_op='insert')
 
         self.build_feature('GridScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
         self.assert_node_features(['GridScaleTestLargeIP'], [self.hostname], mod_op='insert')
@@ -430,15 +430,15 @@ class grid_scale_test_large(utcondor.condor_unit_test):
             raise Exception()
 
         sustain = 330
-        nsub = 500
+        nsub = 300
         interval = 1.0
-        duration = 30
+        duration = 60
 
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
             schedd_name = self.schedd_names[j % self.n_schedd]
-            cjs_command = "~/git/condor_tools/bin/cjs -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Large\"' -name '%s' >'%s/sh_out%03d' 2>'%s/sh_err%03d'" % (self.tmpdir, duration, j, interval, sustain, schedd_name, self.tmpdir, j, self.tmpdir, j)
+            cjs_command = "~/git/condor_tools/bin/cjs -shell -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestLarge\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"Large\"' -name '%s' >'%s/sh_out%03d' 2>'%s/sh_err%03d'" % (self.tmpdir, duration, j, interval, sustain, schedd_name, self.tmpdir, j, self.tmpdir, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -451,6 +451,8 @@ class grid_scale_test_large(utcondor.condor_unit_test):
 
         #self.remove_jobs(tag="Large", schedd=self.schedd_names)
         self.poll_for_empty_job_queue(tag="Large", interval=30, maxtime=3600, schedd=self.schedd_names)
+
+        time.sleep(60)
 
         hfname = "%s/history" % (self.tmpdir)
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
