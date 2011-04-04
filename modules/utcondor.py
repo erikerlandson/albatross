@@ -665,5 +665,32 @@ class condor_unit_test(unittest.TestCase):
         return collector_names
 
 
+    def build_accounting_group_feature(self, feature_name, group_tuple_list):
+        sys.stdout.write("building acct group feature %s\n"%(feature_name))
+        sys.stdout.flush()
+        
+        self.assert_feature(feature_name)
+
+        params = {}
+        params["GROUP_NAMES"] = ",".join([x[0] for x in group_tuple_list])
+        
+        for tuple in group_tuple_list:
+            (name, is_static, quota, accept_surplus) = tuple
+            if is_static: params["GROUP_QUOTA_%s"%(name)] = "%d"%(int(quota))
+            else:         params["GROUP_QUOTA_DYNAMIC_%s"%(name)] = "%f"%(float(quota))
+            if accept_surplus: params["GROUP_AUTOREGROUP_%s"%(name)] = "TRUE"
+
+        # make sure parameters are declared
+        splist = params.keys()
+        splist.sort()
+        for p in splist: self.assert_param(p)
+
+        feat_obj = WallabyHelpers.get_feature(self.session, self.config_store, feature_name)
+        result = feat_obj.modifyParams('replace', params, {})
+        if result.status != 0:
+            sys.stderr.write("Failed to modify params for %s: (%d, %s)\n" % (feature_name, result.status, result.text))
+            raise WallabyStoreError("Failed to add feature")
+
+
     def runTest(self):
         pass
