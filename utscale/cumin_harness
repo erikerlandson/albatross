@@ -42,7 +42,7 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         
         # class specific setup goes after parent class
         reporting_nodes = self.reporting_nodes(with_attr=['Machine', 'CondorPlatform'])
-        reporting_nodes = [x[0] for x in reporting_nodes if (x[1].rfind('LINUX') >= 0 or x[1].rfind('Redhat') >= 0)]
+        reporting_nodes = [x[0] for x in reporting_nodes if ("linux" in x[1].lower() or "redhat" in x[1].lower())]
         qualified_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
         candidate_nodes = list((set(qualified_nodes) & set(reporting_nodes))-set([self.hostname]))
 
