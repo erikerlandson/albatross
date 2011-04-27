@@ -22,14 +22,27 @@ import utcondor
 
 # inherit standard args from utcondor
 parser = argparse.ArgumentParser(parents=[utcondor.parser])
-parser.add_argument('--feature', required=True, metavar='<name>', help='name of new execute feature')
-parser.add_argument('--nstartd', type=int, metavar='<n>', default=1)
-parser.add_argument('--nslots', type=int, metavar='<n>', default=1)
-parser.add_argument('--ndynamic', type=int, metavar='<n>', default=0)
-parser.add_argument('--no-append', action='store_false', default=True, dest='append', help='do not append to DAEMON_LIST: overwrite')
-parser.add_argument('--no-dedicated', action='store_false', default=True, dest='dedicated', help='do not declare dedicated node behavior')
-parser.add_argument('--preemption', action='store_true', default=False, dest='preemption', help='do not disable preemption')
-parser.add_argument('--no-ad-machine', action='store_false', default=True, dest='ad_machine', help='do not advertise special multi-startd machine names')
+
+grp = parser.add_argument_group(title='feature')
+grp.add_argument('--feature', required=True, metavar='<name>', help='name of new feature')
+grp.add_argument('--type', choices=['execute', 'scheduler', 'collector', 'e', 's', 'c'], default='execute', metavar='<type>', help='{execute|scheduler|collector} (def=execute)')
+grp.add_argument('--no-append', action='store_false', default=True, dest='append', help='do not append to DAEMON_LIST: overwrite')
+
+grp=parser.add_argument_group(title='execute feature')
+grp.add_argument('--nstartd', type=int, metavar='<n>', default=1, help='(def=1)')
+grp.add_argument('--nslots', type=int, metavar='<n>', default=1, help='(def=1)')
+grp.add_argument('--ndynamic', type=int, metavar='<n>', default=0, help='(def=0 -- no dynamic)')
+grp.add_argument('--no-dedicated', action='store_false', default=True, dest='dedicated', help='do not declare dedicated node behavior')
+grp.add_argument('--preemption', action='store_true', default=False, dest='preemption', help='do not disable preemption')
+grp.add_argument('--no-ad-machine', action='store_false', default=True, dest='ad_machine', help='do not advertise special multi-startd machine names')
+
+grp=parser.add_argument_group(title='scheduler feature')
+grp.add_argument('--nschedd', type=int, metavar='<n>', default=1, help='(def=1)')
+
+grp=parser.add_argument_group(title='collector feature')
+grp.add_argument('--ncollector', type=int, metavar='<n>', default=1, help='(def=1)')
+grp.add_argument('--portstart', type=int, metavar='<port>', default=10000, help='(def=10000)')
+grp.add_argument('--collhost', metavar='<collector-host>', default=None)
 
 # parse args from command line
 args = parser.parse_args()
@@ -43,6 +56,13 @@ utcondor.init(args)
 ut = utcondor.condor_unit_test()
 ut.setUp()
 
-ut.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption, ad_machine=args.ad_machine)
+if args.type in ['execute', 'e']:
+    ut.build_execute_feature(args.feature, n_startd=args.nstartd, n_slots=args.nslots, n_dynamic=args.ndynamic, dl_append=args.append, dedicated=args.dedicated, preemption=args.preemption, ad_machine=args.ad_machine)
+elif args.type in ['scheduler', 's']:
+    ut.build_scheduler_feature(args.feature, n_schedd=args.nschedd, dl_append=args.append)
+elif args.type in ['collector', 'c']:
+    ut.build_collector_feature(args.feature, n_coll=args.ncollector, dl_append=args.append, portstart=args.portstart, collector_host=args.collhost)
+else: pass
+    
 
 ut.tearDown()
