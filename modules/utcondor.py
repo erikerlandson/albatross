@@ -626,7 +626,7 @@ class condor_unit_test(unittest.TestCase):
         return schedd_names
 
 
-    def build_collector_feature(self, feature_name, n_coll=1, portstart=10000, dl_append=True, collector_host=None, condor_host=None):
+    def build_collector_feature(self, feature_name, n_coll=1, portstart=10000, dl_append=True, collector_host=None, condor_host=None, disable_plugins=True):
         if condor_host==None: condor_host = self.params.collector_addr
         if collector_host==None: collector_host = condor_host
         sys.stdout.write("building collector feature %s with %d sub-collectors\n"%(feature_name, n_coll))
@@ -650,6 +650,8 @@ class condor_unit_test(unittest.TestCase):
             params["COLLECTOR%s_ENVIRONMENT"%(tag)] = "_CONDOR_COLLECTOR_LOG=$(LOG)/CollectorLog%s"%(tag)
             params["COLLECTOR.%s.COLLECTOR_NAME"%(locname)] = locname
             params["COLLECTOR.%s.CONDOR_VIEW_HOST"%(locname)] = "$(COLLECTOR_HOST)"
+            if disable_plugins:
+                params["COLLECTOR.%s.PLUGINS"%(locname)] = ""
 
         params["DAEMON_LIST"] = daemon_list
 

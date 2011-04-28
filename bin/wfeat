@@ -42,7 +42,7 @@ grp.add_argument('--nschedd', type=int, metavar='<n>', default=1, help='(def=1)'
 grp=parser.add_argument_group(title='collector feature')
 grp.add_argument('--ncollector', type=int, metavar='<n>', default=1, help='(def=1)')
 grp.add_argument('--portstart', type=int, metavar='<port>', default=10000, help='(def=10000)')
-grp.add_argument('--collhost', metavar='<collector-host>', default=None)
+grp.add_argument('--allow-plugins', action='store_true', default=False, help='do not explicitly disable plugins')
 
 # parse args from command line
 args = parser.parse_args()
@@ -61,7 +61,7 @@ if args.type in ['execute', 'e']:
 elif args.type in ['scheduler', 's']:
     ut.build_scheduler_feature(args.feature, n_schedd=args.nschedd, dl_append=args.append)
 elif args.type in ['collector', 'c']:
-    ut.build_collector_feature(args.feature, n_coll=args.ncollector, dl_append=args.append, portstart=args.portstart, collector_host=args.collhost)
+    ut.build_collector_feature(args.feature, n_coll=args.ncollector, dl_append=args.append, portstart=args.portstart, disable_plugins=(not args.allow_plugins))
 else: pass
     
 
