@@ -261,6 +261,19 @@ class condor_unit_test(unittest.TestCase):
                 raise WallabyStoreError("Failed to clear params")
 
 
+    def clear_default_group(self):
+            group_obj = WallabyHelpers.get_group(self.session, self.config_store, '+++DEFAULT')
+            result = group_obj.modifyFeatures('replace', [], {})
+            if result.status != 0:
+                sys.stderr.write("Failed to clear features from %s: (%d, %s)\n" % (name, result.status, result.text))
+                raise WallabyStoreError("Failed to clear features")
+
+            result = group_obj.modifyParams('replace', {}, {})
+            if result.status != 0:
+                sys.stderr.write("Failed to clear params from %s: (%d, %s)\n" % (name, result.status, result.text))
+                raise WallabyStoreError("Failed to clear params")
+        
+
     def tag_test_feature(self, feature_name, param_name):
         # ensure parameter name exists
         self.assert_param(param_name)

@@ -42,6 +42,7 @@ class grid_scale_test_micro(utcondor.condor_unit_test):
 
         # Make sure all config is cleared from nodes
         self.clear_nodes([target_node])
+        self.clear_default_group()
 
         # define groups on the given nodes
         # For this 'micro' test, I'm assuming a personal condor that has

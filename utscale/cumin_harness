@@ -70,6 +70,7 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
 
         # Make sure all config is cleared from nodes
         self.clear_nodes(self.target_nodes)
+        self.clear_default_group()
 
         # define groups on the given nodes
         self.assert_node_groups(['CuminScaleTestLarge'], self.target_nodes)
