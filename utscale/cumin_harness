@@ -89,8 +89,8 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         self.build_feature('CuminScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":""})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_node_features(['CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg'], [self.params.collector_addr], mod_op='insert')
-        #self.assert_node_features(['CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg', 'CuminScaleTestLargeNoPlugins'], [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg'], [self.params.collector_addr], mod_op='insert')
+        #self.assert_node_features(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg', 'CuminScaleTestLargeNoPlugins'], [self.params.collector_addr], mod_op='insert')
 
         # use IP addresses to test if reduces DNS latencies
         self.build_feature('GridScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})

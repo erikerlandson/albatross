@@ -397,7 +397,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.build_feature('GridScaleTestLargeNoPreempt', params={"NEGOTIATOR_CONSIDER_PREEMPTION":"FALSE", "PREEMPTION_REQUIREMENTS":"FALSE", "RANK":"0"})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_node_features(['GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins', 'GridScaleTestLargeNoPreempt'], [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins', 'GridScaleTestLargeNoPreempt'], [self.params.collector_addr], mod_op='insert')
 
         self.build_feature('GridScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
         self.assert_node_features(['GridScaleTestLargeIP'], [self.hostname], mod_op='insert')
