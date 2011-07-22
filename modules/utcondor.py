@@ -1,4 +1,5 @@
 import sys, os, os.path, string
+import re
 import time
 import datetime
 import tempfile
@@ -502,14 +503,14 @@ class condor_unit_test(unittest.TestCase):
         wallaby_nodes = self.list_nodes(with_all_feats=with_all_feats, without_any_feats=without_any_feats, with_all_groups=with_all_groups, checkin_since=checkin_since)
 
         # nodes visible to condor
-        cmd = "condor_status -master -constraint='%s'" % (constraint)
+        cmd = "condor_status -master -constraint '%s'" % (constraint)
         res = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
         res = res.strip('\n')
         condor_nodes = res.split('\n')
 
         # the utcondor/albatross environment requires nodes visible to both condor and wallaby        
         candidates = set(wallaby_nodes) & set(condor_nodes)
-        
+
         # handle white and black lists from the user
         if len(params.white) > 0:
             white = set()
