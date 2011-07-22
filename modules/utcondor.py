@@ -26,7 +26,8 @@ grp = parser.add_argument_group(title="Condor Unit Testing")
 grp.add_argument('-c', '--collector', dest='collector_addr', default=None, metavar='<host>')
 grp.add_argument('--no-restore', dest='no_restore', action='store_true', default=False, help='do not restore pre-test config')
 grp.add_argument('--preload-snapshot', dest='preload_snapshot', default=None, metavar='<snapshot-name>')
-
+grp.add_argument('--white', default=[], action='append', metavar='<regexp>', help='allow machine names matching <regexp>')
+grp.add_argument('--black', default=[], action='append', metavar='<regexp>', help='forbid machine names matching <regexp>') 
 
 supported_api_versions = {20100804:0, 20100915:0, 20101031:1}
 connection = None
@@ -485,6 +486,37 @@ class condor_unit_test(unittest.TestCase):
 
             r += [node]
         return r
+
+
+    def candidate_nodes(self, with_all_feats=None, without_any_feats=None, with_all_groups=None, without_any_groups=None, checkin_since=None, constraint=None):
+        if checkin_since is None: checkin_since = time.time() - (3600 + 5*60)
+        if constraint is None: constraint = 'True'
+
+        # nodes visible to wallaby
+        wallaby_nodes = self.list_nodes(with_all_feats=with_all_feats, without_any_feats=without_any_feats, with_all_groups=with_all_groups, checkin_since=checkin_since)
+
+        # nodes visible to condor
+        cmd = "condor_status -master -constraint='%s'" % (constraint)
+        res = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE, stderr=self.devnull).communicate()[0]
+        res = res.strip('\n')
+        condor_nodes = res.split('\n')
+
+        # the utcondor/albatross environment requires nodes visible to both condor and wallaby        
+        candidates = set(wallaby_nodes) & set(condor_nodes)
+        
+        # handle white and black lists from the user
+        if len(params.white) > 0:
+            white = set()
+            for w in params.white:
+                white |= set([m for m in list(candidates) if re.match(w, m)])
+            candidates &= white
+        if len(params.black) > 0:
+            black = set()
+            for b in params.black:
+                black |= set([m for m in list(candidates) if re.match(b, m)])
+            candidates -= black
+
+        return list(candidates)
 
 
     def build_feature(self, feature_name, params={}, mod_op='replace'):
