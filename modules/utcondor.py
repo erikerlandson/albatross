@@ -34,6 +34,12 @@ connection = None
 params = None
 
 
+def reverse(L):
+    r = L[:]
+    r.reverse()
+    return r
+
+
 def init(p):
     global params
     # At the moment I don't feel sure what the semantics would be for allowing multiple init calls
