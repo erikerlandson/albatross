@@ -57,11 +57,13 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         self.build_access_feature('GridScaleTestLargeAccess')
         (pslots,dslots) = self.build_execute_feature('GridScaleTestLargeExecute', n_startd=self.n_startd, n_slots=self.n_slots, n_dynamic=self.n_dynamic, dl_append=False)
 
+        self.build_feature('GridScaleTestLargePorts', params={"LOWPORT":"1024", "HIGHPORT":"64000"})
+
         self.build_feature('GridScaleTestLargeUpdate', params={"UPDATE_INTERVAL":"60"})
         #self.build_feature('GridScaleTestLargeBenchOff', params={"RUNBENCHMARKS":"FALSE"})
 
         # define features on the given groups
-        self.assert_group_features(utcondor.reverse(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeAccess', 'GridScaleTestLargeExecute', 'GridScaleTestLargeUpdate']), ['GridScaleTestLarge'])
+        self.assert_group_features(utcondor.reverse(['NodeAccess', 'Master', 'GridScaleTestLarge', 'GridScaleTestLargeAccess', 'GridScaleTestLargeExecute', 'GridScaleTestLargeUpdate', 'GridScaleTestLargePorts']), ['GridScaleTestLarge'])
 
         # This is my subversive technique for ensuring that my target systems restart
         self.tag_test_feature('GridScaleTestLarge', 'GRID_SCALE_TEST_RESTART_TAG')
@@ -86,13 +88,13 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         # miscellaneous settings
         self.build_feature('GridScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"", "MAX_NEGOTIATOR_LOG":"100000000", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":"", "SHADOW_LOCK":"", "SHADOW_LOG":"", "NEGOTIATOR_PRE_JOB_RANK":"0", "NEGOTIATOR_POST_JOB_RANK":"0"})
 
-        self.build_feature('GridScaleTestLargeNoPreempt', params={"NEGOTIATOR_CONSIDER_PREEMPTION":"FALSE", "PREEMPTION_REQUIREMENTS":"FALSE", "RANK":"0"})
+        self.build_feature('GridScaleTestLargeNoPreempt', params={"NEGOTIATOR_CONSIDER_PREEMPTION":"FALSE", "PREEMPTION_REQUIREMENTS":"FALSE", "RANK":"0", "SHADOW_TIMEOUT_MULTIPLIER":"4", "SHADOW_WORKLIFE":"36000"})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins', 'GridScaleTestLargeNoPreempt']), [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'GridScaleTestLargeSchedd', 'GridScaleTestLargeFetch', 'GridScaleTestLargeNeg', 'GridScaleTestLargeNoPlugins', 'GridScaleTestLargeNoPreempt', 'GridScaleTestLargePorts']), [self.params.collector_addr], mod_op='insert')
 
         self.build_feature('GridScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
-        self.assert_node_features(['GridScaleTestLargeIP'], [self.hostname], mod_op='insert')
+        self.assert_node_features(['GridScaleTestLargeIP', 'GridScaleTestLargePorts'], [self.hostname], mod_op='insert')
 
         # snapshot this test config
         self.take_snapshot("grid_scale_%s_large_test" % (self.testdate))
