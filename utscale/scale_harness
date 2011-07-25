@@ -95,6 +95,13 @@ class grid_scale_test_small(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise
 
+        # I expect this from repo submodule condor_tools
+        if sys.path[0] != '':
+            self.ctbin = "%s/../submodules/condor_tools/bin"%(sys.path[0])
+        else:
+            self.ctbin = "../submodules/condor_tools/bin"
+
+
         # class specific setup goes after parent class
         provisioned_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
         reporting_nodes = self.reporting_nodes()
@@ -158,7 +165,7 @@ class grid_scale_test_small(utcondor.condor_unit_test):
         nsub = 10
         submit_procs = []
         for j in xrange(nsub):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -ss -ss-interval 0.95 -ss-maxreps %d >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, maxreps, j, j)
+            cjs_command = "%s/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -ss -ss-interval 0.95 -ss-maxreps %d >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (self.ctbin, duration, j, maxreps, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -183,7 +190,7 @@ class grid_scale_test_small(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        cjs_command = "~/git/condor_tools/bin/cjs -duration 15 -n 4000 -sub 10 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+CondorUnitTestTag=\"Small\"' >/tmp/sh_out 2>/tmp/sh_err"
+        cjs_command = "%s/cjs -duration 15 -n 4000 -sub 10 -reqs 'stringListMember(\"GridScaleTestSmall\", WallabyGroups)' -append '+CondorUnitTestTag=\"Small\"' >/tmp/sh_out 2>/tmp/sh_err" % (self.ctbin)
         sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
         proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
         proc.wait()
@@ -202,6 +209,12 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         except:
             sys.stderr.write("setup failed")
             raise
+
+        # I expect this from repo submodule condor_tools
+        if sys.path[0] != '':
+            self.ctbin = "%s/../submodules/condor_tools/bin"%(sys.path[0])
+        else:
+            self.ctbin = "../submodules/condor_tools/bin"
 
         # class specific setup goes after parent class
         qualified_nodes = self.list_nodes(without_any_feats=['CentralManager','Negotiator','Collector'], checkin_since=time.time()-4000)
@@ -273,7 +286,7 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         submit_procs = []
         sincetime=time.time()
         for j in xrange(nsub):
-            cjs_command = "~/git/condor_tools/bin/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -log -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (duration, j, interval, sustain, j, j)
+            cjs_command = "%s/cjs -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -log -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out%03d 2>/tmp/sh_err%03d" % (self.ctbin, duration, j, interval, sustain, j, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -291,13 +304,13 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
 
         sys.stdout.write("submissions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions"%(self.ctbin, hfname, int(sincetime))])
         sys.stdout.write("submissions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate"%(self.ctbin, hfname, int(sincetime))])
         sys.stdout.write("completions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(self.ctbin, hfname, int(sincetime))])
         sys.stdout.write("completions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(self.ctbin, hfname, int(sincetime))])
 
 
     def test_completion_rate(self):
@@ -307,7 +320,7 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise Exception()
         # this unit test should pass
-        cjs_command = "~/git/condor_tools/bin/cjs -duration 30 -n 10000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err"
+        cjs_command = "%s/cjs -duration 30 -n 10000 -sub 20 -reqs 'stringListMember(\"GridScaleTestMedium\", WallabyGroups)' -append '+CondorUnitTestTag=\"Medium\"' >/tmp/sh_out 2>/tmp/sh_err" % (self.ctbin)
 
         sincetime=time.time()
         sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
@@ -321,9 +334,9 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
 
         sys.stdout.write("completions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(self.ctbin, hfname, int(sincetime))])
         sys.stdout.write("completions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(self.ctbin, hfname, int(sincetime))])
 
 
 # inherit standard args from utcondor

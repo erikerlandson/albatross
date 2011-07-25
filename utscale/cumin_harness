@@ -31,6 +31,12 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
             sys.stderr.write("setup failed")
             raise
 
+        # I expect this from repo submodule condor_tools
+        if sys.path[0] != '':
+            self.ctbin = "%s/../submodules/condor_tools/bin"%(sys.path[0])
+        else:
+            self.ctbin = "../submodules/condor_tools/bin"
+
         self.tmpdir = tempfile.mkdtemp(prefix='ch_large_')
         sys.stdout.write("working-directory= %s\n" % self.tmpdir)
 
@@ -131,7 +137,7 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         sincetime=time.time()
         for j in xrange(nsub):
             schedd_name = self.schedd_names[j % self.n_schedd]
-            cjs_command = "~/git/condor_tools/bin/cjs -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"CuminScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"CuminLarge\"' -name '%s' >'%s/ch_out%03d' 2>'%s/ch_err%03d'" % (self.tmpdir, duration, j, interval, sustain, schedd_name, self.tmpdir, j, self.tmpdir, j)
+            cjs_command = "%s/cjs -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"CuminScaleTestLarge\", WallabyGroups)' -ss -ss-interval %f -ss-maxtime %d -append '+CondorUnitTestTag=\"CuminLarge\"' -name '%s' >'%s/ch_out%03d' 2>'%s/ch_err%03d'" % (self.ctbin, self.tmpdir, duration, j, interval, sustain, schedd_name, self.tmpdir, j, self.tmpdir, j)
             sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
             proc = subprocess.Popen(["/bin/sh", "-c", cjs_command], stdout=self.devnull, stderr=self.devnull)
             submit_procs += [proc]
@@ -150,19 +156,19 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
 
         hofsub = "%s/hofsub.dat" % (self.tmpdir)
         sys.stdout.write("submissions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -hof-out %s"%(hfname, int(sincetime), hofsub)])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -hof-out %s"%(self.ctbin, hfname, int(sincetime), hofsub)])
         sys.stdout.write("submissions rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -rate -hof %s"%(hfname, int(sincetime), hofsub)])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -rate -hof %s"%(self.ctbin, hfname, int(sincetime), hofsub)])
         sys.stdout.write("submissions cum:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -hof %s"%(hfname, int(sincetime), hofsub)])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -hof %s"%(self.ctbin, hfname, int(sincetime), hofsub)])
         sys.stdout.write("submissions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate -hof %s"%(hfname, int(sincetime), hofsub)])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -submissions -cum -rate -hof %s"%(self.ctbin, hfname, int(sincetime), hofsub)])
 
         hofcpl = "%s/hofcpl.dat" % (self.tmpdir)
         sys.stdout.write("completions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -hof-out %s"%(hfname, int(sincetime), hofcpl)])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -hof-out %s"%(self.ctbin, hfname, int(sincetime), hofcpl)])
         sys.stdout.write("completions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate -hof %s"%(hfname, int(sincetime), hofcpl)])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate -hof %s"%(self.ctbin, hfname, int(sincetime), hofcpl)])
 
 
     def test_completion_rate(self):
@@ -176,7 +182,7 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         nsub = 20       # number of submitters
         duration = 30   # job duration (sec)
 
-        cjs_command = "~/git/condor_tools/bin/cjs -duration %d -n %d -sub %d -reqs 'stringListMember(\"CuminScaleTestLarge\", WallabyGroups)' -append '+CondorUnitTestTag=\"CuminLarge\"' >%s/ch_cr_out 2>%s/ch_cr_err" % (duration, njobs, nsub, self.tmpdir, self.tmpdir)
+        cjs_command = "%s/cjs -duration %d -n %d -sub %d -reqs 'stringListMember(\"CuminScaleTestLarge\", WallabyGroups)' -append '+CondorUnitTestTag=\"CuminLarge\"' >%s/ch_cr_out 2>%s/ch_cr_err" % (self.ctbin, duration, njobs, nsub, self.tmpdir, self.tmpdir)
 
         sincetime=time.time()
         sys.stdout.write("spawning submit process \"%s\"\n" % (cjs_command))
@@ -190,9 +196,9 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
 
         sys.stdout.write("completions:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d"%(self.ctbin, hfname, int(sincetime))])
         sys.stdout.write("completions cum rate:\n")
-        subprocess.call(["/bin/sh", "-c", "~/git/condor_tools/bin/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(hfname, int(sincetime))])
+        subprocess.call(["/bin/sh", "-c", "%s/plot_pool_thruput -noplot -timeslice 30 -f %s -since %d -cum -rate"%(self.ctbin, hfname, int(sincetime))])
 
 
 if __name__ == "__main__":
