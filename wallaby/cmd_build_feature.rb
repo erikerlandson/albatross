@@ -14,7 +14,6 @@
 
 $LOAD_PATH << "#{ENV['WALLABY_COMMAND_DIR']}"
 require 'albatross_wallaby_tools.rb'
-require 'pp'
 
 module Mrg
   module Grid

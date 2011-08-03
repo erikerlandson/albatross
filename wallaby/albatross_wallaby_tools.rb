@@ -13,6 +13,8 @@
 # limitations under the License.
 
 module Albatross
+  # The WallabyTools module is designed to be mixed-in with a class that provides
+  # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
   module WallabyTools
     def build_feature(feature_name, feature_params, kwargs={})
       puts "build_feature: name= %s" % feature_name if kwargs[:verbosity] > 0
