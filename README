@@ -6,3 +6,11 @@ Installing Submodules
 $ cd .../path/to/albatross
 $ git submodule init
 $ git submodule update
+
+==========
+Installing Wallaby shell commands
+
+# either set wallaby command dir to the wallaby subdir in this repository
+# or move contents of wallaby subdir to an existing wallaby command dir of your own
+$ export WALLABY_COMMAND_DIR=.../path/to/albatross/wallaby
+==========
