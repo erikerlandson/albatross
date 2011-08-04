@@ -59,7 +59,7 @@ module Mrg
               end
 
               opts.on("-o", "--operation OP", [:replace, :add, :remove], "feature editing option") do |op|
-                @operation = op
+                @operation = case op when :replace; "replace" when :add; "add" when :remove; "remove" end
               end
 
               opts.on("-v", "--verbose", "verbose output") do
