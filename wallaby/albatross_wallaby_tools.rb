@@ -16,17 +16,95 @@ module Albatross
   # The WallabyTools module is designed to be mixed-in with a class that provides
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
   module WallabyTools
+
     def build_feature(feature_name, feature_params, kwargs={})
-      puts "build_feature: name= %s" % feature_name if kwargs[:verbosity] > 0
       kwdef = { :op => 'replace', :verbosity => 0 }
       kwargs = kwdef.merge(kwargs)
+
+      puts "build_feature: %s" % feature_name if kwargs[:verbosity] > 0
       store.addFeature(feature_name) unless store.checkFeatureValidity([feature_name]) == []
       feature = store.getFeature(feature_name)
+
       store.checkParameterValidity(feature_params.keys).each do|param|
         puts "build_feature: declaring parameter %s" % param if kwargs[:verbosity] > 0
         store.addParam(param)
       end
+
       feature.modifyParams(kwargs[:op], feature_params)
     end
+
+
+    def build_execute_feature(feature_name, kwa={})
+      kwdef = { :verbosity => 0, :startd => 1, :slots => 1, :dynamic => 0, 
+                :dl_append => true, :dedicated => true, :preemption => false, :ad_machine => false }
+      kwa = kwdef.merge(kwa)
+
+      if kwa[:verbosity] > 0 then 
+        puts "build_execute_feature: %s  startd= %d  slots= %d  dynamic= %d" % [ feature_name, kwa[:startd], kwa[:slots], kwa[:dynamic] ]
+      end
+
+      params = {}
+      params["USE_PROCD"] = "FALSE"
+
+      if kwa[:dedicated] then
+        params["START"] = "TRUE"
+        params["SUSPEND"] = "FALSE"
+        params["KILL"] = "FALSE"
+        params["CONTINUE"] = "TRUE"
+        params["WANT_VACATE"] = "FALSE"
+        params["WANT_SUSPEND"] = "FALSE"
+      end
+
+      if not kwa[:preemption] then
+        params["MAXJOBRETIREMENTTIME"] = "3600 * 24"
+        params["PREEMPT"] = "FALSE"
+        params["PREEMPTION_REQUIREMENTS"] = "FALSE"
+        params["RANK"] = "0"
+        params["NEGOTIATOR_CONSIDER_PREEMPTION"] = "FALSE"
+      end
+
+      if kwa[:dynamic] > 0 then
+        params["SLOT_TYPE_1"] = "cpus=%d" % (kwa[:dynamic])
+        params["SLOT_TYPE_1_PARTITIONABLE"] = "TRUE"
+        params["NUM_SLOTS_TYPE_1"] = "%d" % (kwa[:slots])
+        params["NUM_CPUS"] = "%d" % (kwa[:slots] * kwa[:dynamic])
+      else
+        params["NUM_SLOTS"] = "%d" % (kwa[:slots])
+        params["NUM_CPUS"] = "%d" % (kwa[:slots])
+      end
+
+      if kwa[:dl_append] then
+        daemon_list = ">= "
+      else
+        daemon_list = "MASTER"
+      end
+
+      for s in (0...kwa[:startd])
+        tag = "%03d"%(s)
+        locname = "STARTD%s"%(tag)
+        if (s > 0) or not kwa[:dl_append] then
+          daemon_list += ","
+        end
+        daemon_list += "STARTD%s"%(tag)
+        params["STARTD%s"%(tag)] = "$(STARTD)"
+        params["STARTD%s_ARGS"%(tag)] = "-f -local-name %s"%(locname)
+        params["STARTD.%s.STARTD_NAME"%(locname)] = locname
+        params["STARTD.%s.STARTD_ADDRESS_FILE"%(locname)] = "$(LOG)/.startd%s-address"%(tag)
+        params["STARTD.%s.STARTD_LOG"%(locname)] = "$(LOG)/StartLog%s"%(tag)
+        #params["STARTD.%s.EXECUTE"%(locname)] = "$(EXECUTE)/%s"%(locname)
+        if kwa[:ad_machine] then
+          params["STARTD%s.STARTD_ATTRS"%(tag)] = "$(STARTD_ATTRS), Machine"
+          params["STARTD%s.Machine"%(tag)] = "\"s%s.$(FULL_HOSTNAME)\""%(tag)
+        end
+      end
+      
+      params["DAEMON_LIST"] = daemon_list
+
+      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+
+      tslots = kwa[:startd] * kwa[:slots]
+      return [ tslots, tslots * kwa[:dynamic] ]
+    end
+
   end # module WallabyTools
 end # module Albatross
