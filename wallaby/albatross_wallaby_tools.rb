@@ -17,20 +17,20 @@ module Albatross
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
   module WallabyTools
 
-    def build_feature(feature_name, feature_params, kwargs={})
+    def build_feature(feature_name, feature_params, kwa={})
       kwdef = { :op => 'replace', :verbosity => 0 }
-      kwargs = kwdef.merge(kwargs)
+      kwa = kwdef.merge(kwa)
 
-      puts "build_feature: %s" % feature_name if kwargs[:verbosity] > 0
+      puts "build_feature: %s" % feature_name if kwa[:verbosity] > 0
       store.addFeature(feature_name) unless store.checkFeatureValidity([feature_name]) == []
       feature = store.getFeature(feature_name)
 
       store.checkParameterValidity(feature_params.keys).each do|param|
-        puts "build_feature: declaring parameter %s" % param if kwargs[:verbosity] > 0
+        puts "build_feature: declaring parameter %s" % param if kwa[:verbosity] > 0
         store.addParam(param)
       end
 
-      feature.modifyParams(kwargs[:op], feature_params)
+      feature.modifyParams(kwa[:op], feature_params)
     end
 
 
