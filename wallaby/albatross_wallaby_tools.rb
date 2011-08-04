@@ -192,5 +192,36 @@ module Albatross
       return collector_names      
     end
 
+
+    def build_accounting_group_feature(feature_name, group_tuples, kwa={})
+      kwdef = { :verbosity => 0, :accept_surplus => false }
+      kwa = kwdef.merge(kwa)
+      
+      if kwa[:verbosity] > 0 then
+        puts "build_accounting_group_feature: %s" % [ feature_name ]
+      end
+
+      params = {}
+      params["GROUP_NAMES"] = group_tuples.map {|t| t[0]}.join(",")
+
+      params["GROUP_ACCEPT_SURPLUS"] = if kwa[:accept_surplus] then "TRUE" else "FALSE" end
+
+      group_tuples.each do |name, quota, accept_surplus, is_static|
+        if is_static == nil then is_static = false end
+        if is_static then
+          params["GROUP_QUOTA_%s"%(name)] = "%d" % [ quota.to_i ]
+        else
+          params["GROUP_QUOTA_DYNAMIC_%s"%(name)] = "%f" % [ quota.to_f ]
+        end
+        
+        if accept_surplus == nil then accept_surplus = kwa[:accept_surplus] end
+        if accept_surplus != kwa[:accept_surplus] then
+          params["GROUP_ACCEPT_SURPLUS_%s"%(name)] = if accept_surplus then "TRUE" else "FALSE" end
+        end
+      end
+
+      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+    end
+
   end # module WallabyTools
 end # module Albatross
