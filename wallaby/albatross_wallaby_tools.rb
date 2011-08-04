@@ -106,5 +106,47 @@ module Albatross
       return [ tslots, tslots * kwa[:dynamic] ]
     end
 
+
+    def build_scheduler_feature(feature_name, kwa={})
+      kwdef = { :verbosity => 0, :schedd => 1, :dl_append => true }
+      kwa = kwdef.merge(kwa)
+
+      if kwa[:verbosity] > 0 then
+        puts "build_scheduler_feature: %s  schedd= %d" % [ feature_name, kwa[:schedd] ]
+      end
+
+      schedd_names = []
+      params = {}
+
+      params["USE_PROCD"] = "FALSE"
+
+      if kwa[:dl_append] then
+        daemon_list = ">= "
+      else
+        daemon_list = "MASTER"
+      end
+
+      for s in (0...kwa[:schedd])
+        tag = "%03d"%(s)
+        locname = "SCHEDD%s"%(tag)
+        schedd_names += [locname]
+        if (s > 0) or not kwa[:dl_append] then
+          daemon_list += ","
+        end
+        daemon_list += "SCHEDD%s"%(tag)
+        params["SCHEDD%s"%(tag)] = "$(SCHEDD)"
+        params["SCHEDD%s_ARGS"%(tag)] = "-f -local-name %s"%(locname)
+        params["SCHEDD.%s.SCHEDD_NAME"%(locname)] = locname
+        params["SCHEDD.%s.SCHEDD_LOG"%(locname)] = "$(LOG)/SchedLog%s"%(tag)
+        params["SCHEDD.%s.SCHEDD_ADDRESS_FILE"%(locname)] = "$(LOG)/.schedd%s-address"%(tag)
+      end
+
+      params["DAEMON_LIST"] = daemon_list
+
+      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+
+      return schedd_names
+    end
+
   end # module WallabyTools
 end # module Albatross
