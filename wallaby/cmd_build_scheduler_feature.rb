@@ -68,6 +68,7 @@ module Mrg
           end
         
           def act
+            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
             build_scheduler_feature(@feature_name, :verbosity => @verbosity, :schedd => @nschedd, :dl_append => @dl_append)
             return 0
           end

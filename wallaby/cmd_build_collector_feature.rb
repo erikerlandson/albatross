@@ -78,6 +78,7 @@ module Mrg
           end
         
           def act
+            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
             build_collector_feature(@feature_name, :verbosity => @verbosity, :collector => @ncollector, :portstart => @portstart, 
                                     :dl_append => @dl_append, :disable_plugins => @disable_plugins)
             return 0

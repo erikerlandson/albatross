@@ -69,6 +69,7 @@ module Mrg
           end
         
           def act
+            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
             build_feature(@feature_name, @params, :op => @operation, :verbosity => @verbosity)
             return 0
           end

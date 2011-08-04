@@ -70,6 +70,7 @@ module Mrg
           end
         
           def act
+            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
             build_accounting_group_feature(@feature_name, @group_tuples, :verbosity => @verbosity, :accept_surplus => @accept_surplus)
             return 0
           end
