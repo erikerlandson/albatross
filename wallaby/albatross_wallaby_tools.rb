@@ -148,5 +148,49 @@ module Albatross
       return schedd_names
     end
 
+
+    def build_collector_feature(feature_name, kwa={})
+      kwdef = { :verbosity => 0, :collector => 1, :portstart => 10000, :dl_append => true, :disable_plugins => true }
+      kwa = kwdef.merge(kwa)
+
+      if kwa[:verbosity] > 0 then
+        puts "build_collector_feature: %s  collector= %d" % [ feature_name, kwa[:collector] ]
+      end
+
+      collector_names = []
+      params = {}
+
+      if kwa[:dl_append] then
+        daemon_list = ">= "
+      else
+        daemon_list = "MASTER"
+      end
+
+      for s in (0...kwa[:collector])
+        tag = "%03d"%(s)
+        port=kwa[:portstart]+s
+        locname = "COLLECTOR%s"%(tag)
+        collector_names += [locname]
+        if (s > 0) or not kwa[:dl_append] then
+          daemon_list += ","
+        end
+        daemon_list += "COLLECTOR%s"%(tag)
+        params["COLLECTOR%s"%(tag)] = "$(COLLECTOR)"
+        params["COLLECTOR%s_ARGS"%(tag)] = "-f -p %d -local-name %s" % [ port, locname ]
+        params["COLLECTOR%s_ENVIRONMENT"%(tag)] = "_CONDOR_COLLECTOR_LOG=$(LOG)/CollectorLog%s"%(tag)
+        params["COLLECTOR.%s.COLLECTOR_NAME"%(locname)] = locname
+        params["COLLECTOR.%s.CONDOR_VIEW_HOST"%(locname)] = "$(COLLECTOR_HOST)"
+        if kwa[:disable_plugins] then
+          params["COLLECTOR.%s.PLUGINS"%(locname)] = ""
+        end
+      end
+
+      params["DAEMON_LIST"] = daemon_list
+
+      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+
+      return collector_names      
+    end
+
   end # module WallabyTools
 end # module Albatross
