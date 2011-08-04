@@ -58,31 +58,31 @@ module Mrg
                 @feature_name = name
               end
 
-              opts.on("--nstartd N", Integer, "number of startds") do |n|
+              opts.on("--nstartd N", Integer, "number of startds: def= %s" % [@nstartd]) do |n|
                 @nstartd = n
               end
 
-              opts.on("--nslots N", Integer, "number of slots per startd") do |n|
+              opts.on("--nslots N", Integer, "number of slots per startd: def= %s" % [@nslots]) do |n|
                 @nslots = n
               end
 
-              opts.on("--ndynamic N", Integer, "number of dynamic slots per slot") do |n|
+              opts.on("--ndynamic N", Integer, "number of dynamic slots per slot: def= %s" % [@ndynamic]) do |n|
                 @ndynamic = n
               end
 
-              opts.on("--[no-]dl-append", "append to daemon list") do |v|
+              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@dl_append]) do |v|
                 @dl_append = v
               end
 
-              opts.on("--[no-]dedicated", "dedicated execute node") do |v|
+              opts.on("--[no-]dedicated", "dedicated execute node: def= %s" % [@dedicated]) do |v|
                 @dedicated = v
               end
 
-              opts.on("--[no-]-preemption", "enable preemption") do |v|
+              opts.on("--[no-]preemption", "enable preemption: def= %s" % [@preemption]) do |v|
                 @preemption = v
               end
 
-              opts.on("--[no-]ad-machine", "advertise machine name per startd") do |v|
+              opts.on("--[no-]ad-machine", "advertise machine name per startd: def= %s" % [@ad_machine]) do |v|
                 @ad_machine = v
               end
 

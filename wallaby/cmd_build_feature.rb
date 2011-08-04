@@ -53,12 +53,12 @@ module Mrg
                 @feature_name = name
               end
 
-              opts.on("-p", "--param PARAM [VAL]", Array, "parameter and value pair") do |pair|
+              opts.on("-p", "--param PARAM[,VAL]", Array, "parameter and value pair: may appear > once") do |pair|
                 @params[pair[0]] = 0 if pair.length == 1
                 @params[pair[0]] = pair[1] if pair.length == 2
               end
 
-              opts.on("-o", "--operation OP", [:replace, :add, :remove], "feature editing option") do |op|
+              opts.on("-o", "--operation OP", [:replace, :add, :remove], "feature editing option: def= %s" % [@operation]) do |op|
                 @operation = case op when :replace; "replace" when :add; "add" when :remove; "remove" end
               end
 

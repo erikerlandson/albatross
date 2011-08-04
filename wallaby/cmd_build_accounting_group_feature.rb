@@ -53,13 +53,13 @@ module Mrg
                 @feature_name = name
               end
 
-              opts.on("-g", "--group NAME QUOTA [ACCEPT_SURPLUS [IS_STATIC]]", Array, "group tuple: may appear multiple times") do |t|
+              opts.on("-g", "--group NAME,QUOTA[,ACCEPT_SURPLUS[,IS_STATIC]]", Array, "group tuple: may appear > once") do |t|
                 accept_surplus = if t.length >= 3 then if t[2]=="true" then true else false end else nil end
                 is_static = if t.length >= 4 then if t[3]=="true" then true else false end else nil end
                 @group_tuples += [ [ t[0], t[1].to_f, accept_surplus, is_static ] ]
               end
 
-              opts.on("--[no-]accept-surplus", "set default accept surplus: def= false") do |v|
+              opts.on("--[no-]accept-surplus", "set default accept surplus: def= %s" % [@accept_surplus]) do |v|
                 @accept_surplus = v
               end
 

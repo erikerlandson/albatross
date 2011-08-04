@@ -53,11 +53,11 @@ module Mrg
                 @feature_name = name
               end
 
-              opts.on("--nschedd N", Integer, "number of schedds") do |n|
+              opts.on("--nschedd N", Integer, "number of schedds: def= %s" % [@nschedd]) do |n|
                 @nschedd = n
               end
 
-              opts.on("--[no-]dl-append", "append to daemon list") do |v|
+              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@dl_append]) do |v|
                 @dl_append = v
               end
 

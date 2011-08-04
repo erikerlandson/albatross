@@ -55,19 +55,19 @@ module Mrg
                 @feature_name = name
               end
 
-              opts.on("--ncollector N", Integer, "number of collectors") do |n|
+              opts.on("--ncollector N", Integer, "number of collectors: def= %s" % [@ncollector]) do |n|
                 @ncollector = n
               end
 
-              opts.on("--port-start N", Integer, "collector port start value") do |n|
+              opts.on("--port-start N", Integer, "collector port start value: def= %s" % [@portstart]) do |n|
                 @portstart = n
               end
 
-              opts.on("--[no-]dl-append", "append to daemon list") do |v|
+              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@dl_append]) do |v|
                 @dl_append = v
               end
 
-              opts.on("--[no-]disable-plugins", "disable collector plugins") do |v|
+              opts.on("--[no-]disable-plugins", "disable collector plugins: def= %s" % [@disable_plugins]) do |v|
                 @disable_plugins = v
               end
 
