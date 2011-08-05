@@ -13,8 +13,39 @@
 # limitations under the License.
 
 module Albatross
+
+  # The purpose of this module is to allow Test::Unit::TestCase objects
+  # to have parameters set on them (in this case, via variables on their singleton-class)
+  # before an actual instance of the test is declared.  I'm doing this because the Test::Unit
+  # framework wants to declare its own instances, so I can't do it and give those instances
+  # parameters.  Intead, I give the parameters to the singleton-class (rather like making them
+  # global to all instances of the class): so any variables set this way cannot be test-specific.
+  module WallabyUnitTestTools
+    module ClassMethods
+      def store=(store)
+        @store = store
+      end
+
+      def store
+        return @store
+      end
+    end
+
+    # this mixes the stuff in ClassMethods into the singleton object
+    # of any class that WallabyUnitTestTools gets mixed into.
+    def self.included(base)
+      class << base ; include ClassMethods ; end
+    end
+
+    # returns the value from the singleton object (global to class)
+    def store
+      return self.class.store
+    end
+  end
+
   # The WallabyTools module is designed to be mixed-in with a class that provides
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
+  # or a class mixed in with WallabyUnitTestTools, above
   module WallabyTools
 
     def build_feature(feature_name, feature_params, kwa={})
