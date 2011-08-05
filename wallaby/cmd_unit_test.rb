@@ -75,7 +75,25 @@ module Mrg
             end
           end
         
+          class Base
+            def foo
+              puts "Base.foo"
+            end
+          end
+
+          module Module
+            def foo
+              puts "Module.foo"
+            end
+          end
+
+          class Derived < Base
+            include Module
+          end
+
           def act
+            Derived.new.foo
+            #exit!(0, "just testing!")
             UT.store=(store)
             ::Test::Unit::UI::Console::TestRunner.run(UT)
             return 0

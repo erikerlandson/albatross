@@ -31,16 +31,29 @@ module Albatross
       end
     end
 
-    # this mixes the stuff in ClassMethods into the singleton object
-    # of any class that WallabyUnitTestTools gets mixed into.
     def self.included(base)
-      class << base ; include ClassMethods ; end
+      # this opens up singleton-class of who we're being mixed into:
+      class << base
+        # this mixes the stuff in ClassMethods into the singleton-class
+        # of any class that WallabyUnitTestTools gets mixed into:
+        include ClassMethods
+      end
     end
 
     # returns the value from the singleton object (global to class)
     def store
       return self.class.store
     end
+
+    # default suite setup/teardown
+    def initial_setup
+    end
+
+    def final_teardown
+    end
+
+    # override suite
+    
   end
 
   # The WallabyTools module is designed to be mixed-in with a class that provides
