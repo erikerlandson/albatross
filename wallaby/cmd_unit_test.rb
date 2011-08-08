@@ -38,7 +38,8 @@ module Mrg
           def init_option_parser
             # Edit this method to generate a method that parses your command-line options.
             OptionParser.new do |opts|
-              @parameter = "default"
+              @params = {}
+              @params[:p] = "default"
 
               opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
         
@@ -48,7 +49,7 @@ module Mrg
               end
 
               opts.on("-p", "--parameter [VAL]", "set param") do |v|
-                @parameter = v
+                @params[:p] = v
               end
             end
           end
@@ -57,9 +58,26 @@ module Mrg
             include ::Albatross::WallabyTools
             include ::Albatross::WallabyUnitTestTools
 
-            def setup
-              puts "setting up"
+            # optional -- supported by WallabyUnitTestTools
+            def suite_setup
+              puts "suite_setup"
               build_feature("EJE", {"P1" => "V1", "P2" => "V2"}, :verbosity => 1)
+              @suite_state = "set"
+            end
+
+            # optional -- supported by WallabyUnitTestTools
+            def suite_teardown
+              puts "suite_teardown"
+            end
+
+            # optional -- Test::Unit standard
+            def setup
+              puts "setup"
+            end
+
+            # optional -- Test::Unit standard
+            def teardown
+              puts "teardown"
             end
 
             def test_1
@@ -70,31 +88,18 @@ module Mrg
               assert_equal([], store.checkFeatureValidity(["DOES_NOT_EXIST"]))
             end
 
-            def teardown
-              puts "tearing down"
+            def test_3
+              assert_equal("eje", params[:p])
+            end
+
+            def test_4
+              assert_equal("set", @suite_state)
             end
           end
         
-          class Base
-            def foo
-              puts "Base.foo"
-            end
-          end
-
-          module Module
-            def foo
-              puts "Module.foo"
-            end
-          end
-
-          class Derived < Base
-            include Module
-          end
-
           def act
-            Derived.new.foo
-            #exit!(0, "just testing!")
             UT.store=(store)
+            UT.params=(@params)
             ::Test::Unit::UI::Console::TestRunner.run(UT)
             return 0
           end

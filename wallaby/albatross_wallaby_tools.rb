@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+require 'test/unit'
+require 'test/unit/testsuite'
+
 module Albatross
 
   # The purpose of this module is to allow Test::Unit::TestCase objects
@@ -22,13 +25,78 @@ module Albatross
   # global to all instances of the class): so any variables set this way cannot be test-specific.
   module WallabyUnitTestTools
     module ClassMethods
+      # accessors for store
       def store=(store)
         @store = store
       end
-
       def store
         return @store
       end
+
+      # accessors for params
+      def params=(params)
+        @params = params
+      end
+      def params
+        return @params
+      end
+
+      # Override #suite so that it instantiates a single instance
+      # of the test class.  Designed to work with the override of .run below
+      def suite
+        s = ::Test::Unit::TestSuite.new(name)
+        # dummy test doesn't actually get run -- it satisfies
+        # some sanity checking in Test::Unit that I need to sneak past.
+        s << new('__dummy_test__')
+        return s
+      end
+    end
+
+    # instance accessor for store (store is global to class)
+    def store
+      return self.class.store
+    end
+    # instance accessor for params (params is global to class)
+    def params
+      return self.class.params
+    end
+
+    # default suite setup/teardown
+    def suite_setup
+      puts "doing default suite_setup"
+    end
+
+    def suite_teardown
+      puts "doing default suite_teardown"
+    end
+
+    # A dummy test to pacify Test::Unit while I subvert it's behavior.
+    # This test never actually executes.
+    def __dummy_test__
+    end
+
+    # Override the standard Test::Unit::TestCase run method, to do two things:
+    # a) provide suite_setup/suite_teardown
+    # b) allow a class to be instantiated as a single object that runs all its
+    # test methods, allowing tests to access shared state (like fixtures).
+    def run(result, &progress_block)
+      # first do suite setup prior to all tests in this object
+      suite_setup
+
+      # get the tests defined on this object
+      method_names = self.class.public_instance_methods(true)
+      tests = method_names.delete_if {|method_name| method_name !~ /^test./}
+
+      # Now run each of those tests, using Test::Unit's test running logic.   Basically
+      # this spoof's the TestCase internal convention of a single object per test, by 
+      # repeatedly setting @method_name
+      tests.sort.each do |t|
+        @method_name = t
+        super(result, &progress_block)
+      end
+
+      # do suite teardown after all tests in this object have been run
+      suite_teardown
     end
 
     def self.included(base)
@@ -39,22 +107,8 @@ module Albatross
         include ClassMethods
       end
     end
-
-    # returns the value from the singleton object (global to class)
-    def store
-      return self.class.store
-    end
-
-    # default suite setup/teardown
-    def initial_setup
-    end
-
-    def final_teardown
-    end
-
-    # override suite
-    
   end
+
 
   # The WallabyTools module is designed to be mixed-in with a class that provides
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
