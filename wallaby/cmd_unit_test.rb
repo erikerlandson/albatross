@@ -81,18 +81,22 @@ module Mrg
             end
 
             def test_1
+              # a test for feature constructed in suite_setup - should pass
               assert_equal([], store.checkFeatureValidity(["EJE"]))
             end
 
             def test_2
+              # this test should fail
               assert_equal([], store.checkFeatureValidity(["DOES_NOT_EXIST"]))
             end
 
             def test_3
+              # test params set from params=
               assert_equal("eje", params[:p])
             end
 
             def test_4
+              # test object state set in suite_setup
               assert_equal("set", @suite_state)
             end
           end
