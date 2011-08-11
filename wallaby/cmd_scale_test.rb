@@ -51,8 +51,9 @@ module Mrg
           end
 
           class ScaleTest < ::Test::Unit::TestCase
-            include ::Albatross::WallabyTools
             include ::Albatross::WallabyUnitTestTools
+            include ::Albatross::WallabyTools
+            include ::Albatross::CondorTools
 
             def suite_setup
             end
@@ -60,7 +61,9 @@ module Mrg
             def suite_teardown
             end
 
-            def test_commit
+            def test_submit
+              nodes = condor_nodes(:verbosity => 1)
+              puts "nodes= %s" % [nodes.join(" ")]
             end
           end
         

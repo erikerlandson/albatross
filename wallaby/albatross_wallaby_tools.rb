@@ -17,6 +17,16 @@ require 'test/unit/testsuite'
 
 module Albatross
 
+  def self.to_array(kwa, p)
+    v = kwa[p]
+    if v.nil? then
+      v = []
+    elsif not (v.class <= Array) then
+      v = [v]
+    end
+    kwa[p] = v
+  end
+
   # The purpose of this module is to allow Test::Unit::TestCase objects
   # to have parameters set on them (in this case, via variables on their singleton-class)
   # before an actual instance of the test is declared.  I'm doing this because the Test::Unit
@@ -322,4 +332,44 @@ module Albatross
     end
 
   end # module WallabyTools
+
+
+  # Similar to WallabyTools, but for examining condor pools
+  module CondorTools
+    # nodes reporting to condor pool
+    def condor_nodes(kwa={})
+      kwdef = { :verbosity => 0, :with_groups => nil, :constraints => nil }
+      kwa = kwdef.merge(kwa)
+
+      Albatross.to_array(kwa, :with_groups)
+      Albatross.to_array(kwa, :constraints)
+
+      cmd = "condor_status -master"
+      cexpr = "True"
+
+      kwa[:with_groups].each do |g|
+        cexpr += " && stringListMember(\"%s\", WallabyGroups)" % [g.to_s]
+      end
+
+      kwa[:constraints].each do |c|
+        cexpr += " && (%s)" % [c.to_s]
+      end
+
+      cmd += " -constraint '(%s)'" % [cexpr]
+
+      cmd += " 2>/dev/null"
+
+      if kwa[:verbosity] > 0 then
+        puts "condor_nodes: cmd= %s" % [cmd]
+      end
+
+      nodes = []
+      IO.popen(cmd) do |input|
+        nodes = input.read.split("\n")
+      end
+
+      return nodes
+    end
+  end
+
 end # module Albatross
