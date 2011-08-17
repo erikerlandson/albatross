@@ -702,6 +702,7 @@ class condor_unit_test(unittest.TestCase):
             params["COLLECTOR%s_ENVIRONMENT"%(tag)] = "_CONDOR_COLLECTOR_LOG=$(LOG)/CollectorLog%s"%(tag)
             params["COLLECTOR.%s.COLLECTOR_NAME"%(locname)] = locname
             params["COLLECTOR.%s.CONDOR_VIEW_HOST"%(locname)] = "$(COLLECTOR_HOST)"
+            params["COLLECTOR.%s.COLLECTOR_ADDRESS_FILE"%(locname)] = "$(LOG)/.collector%s-address"%(tag)
             if disable_plugins:
                 params["COLLECTOR.%s.PLUGINS"%(locname)] = ""
 
