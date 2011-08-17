@@ -15,6 +15,7 @@
 require 'test/unit'
 require 'test/unit/testsuite'
 
+
 module Albatross
 
   def self.to_array(kwa, p)
@@ -26,6 +27,7 @@ module Albatross
     end
     kwa[p] = v
   end
+
 
   # The purpose of this module is to allow Test::Unit::TestCase objects
   # to have parameters set on them (in this case, via variables on their singleton-class)
@@ -124,6 +126,17 @@ module Albatross
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
   # or a class mixed in with WallabyUnitTestTools, above
   module WallabyTools
+
+    def node_groups(node)
+      n = if node.class <= String then store.getNode(node) else node end
+      (["+++DEFAULT"] + n.memberships + [n.identity_group.name]).map { |gn| store.getGroupByName(gn) }
+    end
+
+    def node_features(node)
+      f = []
+      node_groups(node).each { |g| f |= g.features }
+      f.map { |fn| store.getFeature(fn) }
+    end
 
     def build_feature(feature_name, feature_params, kwa={})
       kwdef = { :op => 'replace', :verbosity => 0 }
@@ -329,6 +342,45 @@ module Albatross
       end
 
       build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+    end
+
+
+    def select_nodes(nodes, kwa={})
+      kwdef = { :verbosity => 0, :with_feats => nil, :without_feats => nil, :with_groups => nil, :without_groups => nil, 
+        :checkin_since => (Time.now.to_f - (3600 + 5*60)), 
+        :white => nil, :black => nil }
+      kwa = kwdef.merge(kwa)
+      Albatross.to_array(kwa, :with_feats)
+      Albatross.to_array(kwa, :without_feats)
+      Albatross.to_array(kwa, :with_groups)
+      Albatross.to_array(kwa, :without_groups)
+
+      # subtract the set of nodes that aren't known to the wallaby store:
+      s = nodes - store.checkNodeValidity(nodes) 
+
+      puts "since= %16.6f" % [kwa[:checkin_since]]
+
+      r = []
+      s.map {|x| store.getNode(x)}.each do |node|
+        checkin = node.last_checkin.to_f / 1000000.0
+        puts "node name= %s  checkin= %16.6f" % [node.name, checkin]
+
+        # if node hasn't checked in since given time threshold, ignore it
+        next if (checkin) < kwa[:checkin_since]
+
+        g = node_groups(node).map {|x| x.name}
+        puts "groups= %s" % [g.join(" ")]
+        f = node_features(node).map {|x| x.name}
+        puts "features= %s" % [f.join(" ")]
+        next if (kwa[:with_feats] - f).length > 0
+        next if (kwa[:without_feats] & f).length > 0
+        next if (kwa[:with_groups] - g).length > 0
+        next if (kwa[:without_groups] & g).length > 0
+
+        r << node.name
+      end
+
+      return r
     end
 
   end # module WallabyTools

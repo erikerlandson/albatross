@@ -64,6 +64,10 @@ module Mrg
             def test_submit
               nodes = condor_nodes(:verbosity => 1)
               puts "nodes= %s" % [nodes.join(" ")]
+
+              nodes = select_nodes(['rorschach'], :checkin_since => 0)
+              puts "nodes= %s" % [nodes.join(" ")]
+              
             end
           end
         
