@@ -40,11 +40,11 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         self.tmpdir = tempfile.mkdtemp(prefix='ch_large_')
         sys.stdout.write("working-directory= %s\n" % self.tmpdir)
 
-        self.ntarget = 10     # number of execute machines to build
+        self.ntarget = 8     # number of execute machines to build
         self.n_startd = 50    # number of startd per machine
         self.n_slots = 1      # number of slots per startd
         self.n_dynamic = 8    # number of dynamic slots per main slot (0 for nondynamic)
-        self.n_schedd = 25    # number of schedds to run
+        self.n_schedd = 10    # number of schedds to run
         
         # class specific setup goes after parent class
         candidate_nodes = self.candidate_nodes(without_any_feats=['CentralManager','Negotiator','Collector'])
@@ -72,7 +72,6 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
 
         # Make sure all config is cleared from nodes
         self.clear_nodes(self.target_nodes)
-        self.clear_default_group()
 
         # define groups on the given nodes
         self.assert_node_groups(['CuminScaleTestLarge'], self.target_nodes)
@@ -91,12 +90,13 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         self.build_feature('CuminScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":""})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg']), [self.params.collector_addr], mod_op='insert')
-        #self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg', 'CuminScaleTestLargeNoPlugins']), [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(utcondor.reverse(['CuminScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg']), [self.params.collector_addr], mod_op='insert')
 
-        # use IP addresses to test if reduces DNS latencies
-        self.build_feature('CuminScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
-        self.assert_node_features(['CuminScaleTestLargeIP'], [self.hostname], mod_op='insert')
+        # Just don't do this if we are actually running harness on the CM, it will mess with cumin's head
+        if self.hostname != self.params.collector_addr:
+            # use IP addresses to test if reduces DNS latencies
+            self.build_feature('CuminScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
+            self.assert_node_features(['CuminScaleTestLargeIP'], [self.hostname], mod_op='insert')
 
         # snapshot this test config
         self.take_snapshot("cumin_scale_%s_large_test" % (self.testdate))
