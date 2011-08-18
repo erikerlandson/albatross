@@ -62,13 +62,13 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         self.build_access_feature('CuminScaleTestLargeAccess')
         (pslots,dslots) = self.build_execute_feature('CuminScaleTestLargeExecute', n_startd=self.n_startd, n_slots=self.n_slots, n_dynamic=self.n_dynamic, dl_append=False)
 
-        self.build_feature('GridScaleTestLargeUpdate', params={"UPDATE_INTERVAL":"60"})
+        self.build_feature('CuminScaleTestLargeUpdate', params={"UPDATE_INTERVAL":"60"})
 
         # define features on the given groups
-        self.assert_group_features(utcondor.reverse(['NodeAccess', 'Master', 'CuminScaleTestLarge', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeExecute', 'GridScaleTestLargeUpdate']), ['CuminScaleTestLarge'])
+        self.assert_group_features(utcondor.reverse(['NodeAccess', 'Master', 'CuminScaleTestLarge', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeExecute', 'CuminScaleTestLargeUpdate']), ['CuminScaleTestLarge'])
 
         # This is my subversive technique for ensuring that my target systems restart
-        self.tag_test_feature('CuminScaleTestLarge', 'GRID_SCALE_TEST_RESTART_TAG')
+        self.tag_test_feature('CuminScaleTestLarge', 'CUMIN_SCALE_TEST_RESTART_TAG')
 
         # Make sure all config is cleared from nodes
         self.clear_nodes(self.target_nodes)
@@ -91,12 +91,12 @@ class cumin_scale_test_large(utcondor.condor_unit_test):
         self.build_feature('CuminScaleTestLargeNeg', params={"NEGOTIATOR_INTERVAL":"30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER":"31536000", "NEGOTIATOR_DEBUG":"", "SCHEDD_DEBUG":"", "MAX_SCHEDD_LOG":"100000000", "COLLECTOR_DEBUG":""})
 
         # In the current scheme I only want to add the schedds to existing CM, instead of ground-up CM configuration
-        self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg']), [self.params.collector_addr], mod_op='insert')
-        #self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'GridScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg', 'CuminScaleTestLargeNoPlugins']), [self.params.collector_addr], mod_op='insert')
+        self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg']), [self.params.collector_addr], mod_op='insert')
+        #self.assert_node_features(utcondor.reverse(['NodeAccess', 'Master', 'CuminScaleTestLargeAccess', 'CuminScaleTestLargeSchedd', 'CuminScaleTestLargeFetch', 'CuminScaleTestLargeNeg', 'CuminScaleTestLargeNoPlugins']), [self.params.collector_addr], mod_op='insert')
 
         # use IP addresses to test if reduces DNS latencies
-        self.build_feature('GridScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
-        self.assert_node_features(['GridScaleTestLargeIP'], [self.hostname], mod_op='insert')
+        self.build_feature('CuminScaleTestLargeIP', params={"CONDOR_HOST":"10.16.43.33", "COLLECTOR_HOST":"10.16.43.33"})
+        self.assert_node_features(['CuminScaleTestLargeIP'], [self.hostname], mod_op='insert')
 
         # snapshot this test config
         self.take_snapshot("cumin_scale_%s_large_test" % (self.testdate))
