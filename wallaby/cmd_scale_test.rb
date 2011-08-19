@@ -38,16 +38,19 @@ module Mrg
         
           def init_option_parser
             # Edit this method to generate a method that parses your command-line options.
-            OptionParser.new do |opts|
-              @params = {}
+            @params = {}
 
+            optp = OptionParser.new do |opts|
+              
               opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
-        
+  
               opts.on("-h", "--help", "displays this message") do
                 puts @oparser
                 exit
               end
             end
+
+            ::Albatross::WallabyUnitTestTools.options(optp, @params)
           end
 
           class ScaleTest < ::Test::Unit::TestCase
@@ -56,18 +59,27 @@ module Mrg
             include ::Albatross::CondorTools
 
             def suite_setup
+              # call super first
+              super
             end
 
             def suite_teardown
+              # call super last
+              super
             end
 
             def test_submit
+              puts "verbosity= " + params[:verbosity].to_s
+              
+              puts "td= " + @test_date
+
               nodes = condor_nodes(:verbosity => 1)
               puts "nodes= %s" % [nodes.join(" ")]
 
-              nodes = select_nodes(['rorschach'], :checkin_since => 0)
+              nodes = select_nodes(nodes, :checkin_since => 0, :verbosity => 1)
               puts "nodes= %s" % [nodes.join(" ")]
               
+
             end
           end
         

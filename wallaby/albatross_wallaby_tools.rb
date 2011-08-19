@@ -29,6 +29,16 @@ module Albatross
   end
 
 
+  module ParamTools
+    def try_params(key, dval = nil)
+      return dval if not respond_to?(:params)
+      return dval if not (params.class <= Hash)
+      return dval if not params.has_key?(key)
+      return params[key]
+    end
+  end
+
+
   # The purpose of this module is to allow Test::Unit::TestCase objects
   # to have parameters set on them (in this case, via variables on their singleton-class)
   # before an actual instance of the test is declared.  I'm doing this because the Test::Unit
@@ -36,6 +46,8 @@ module Albatross
   # parameters.  Intead, I give the parameters to the singleton-class (rather like making them
   # global to all instances of the class): so any variables set this way cannot be test-specific.
   module WallabyUnitTestTools
+    include ParamTools
+
     module ClassMethods
       # accessors for store
       def store=(store)
@@ -64,6 +76,26 @@ module Albatross
       end
     end
 
+
+    def self.options(opts, pmap)
+      pmap[:verbosity] = 0
+      opts.on("-v", "--verbose", "verbose output") do
+        pmap[:verbosity] = 1
+      end
+
+      pmap[:white] = nil
+      opts.on("--white REGEXP", "target node white-list regexp") do |v|
+        pmap[:white] = v
+      end
+
+      pmap[:black] = nil
+      opts.on("--black REGEXP", "target node black-list regexp") do |v|
+        pmap[:black] = v
+      end
+
+      opts
+    end
+
     # instance accessor for store (store is global to class)
     def store
       return self.class.store
@@ -73,13 +105,21 @@ module Albatross
       return self.class.params
     end
 
+    def take_snapshot(name, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwa = kwdef.merge(kwa)
+      puts "snapshotting current store to %s" % [name] if kwa[:verbosity] > 0
+      store.makeSnapshot(name)
+    end
+
     # default suite setup/teardown
     def suite_setup
-      puts "doing default suite_setup"
+      @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
+      @pretest_snapshot = "albatross_wallaby_utt_%s_pretest" % (@test_date)
+      take_snapshot(@pretest_snapshot)
     end
 
     def suite_teardown
-      puts "doing default suite_teardown"
     end
 
     # A dummy test to pacify Test::Unit while I subvert it's behavior.
@@ -126,6 +166,7 @@ module Albatross
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
   # or a class mixed in with WallabyUnitTestTools, above
   module WallabyTools
+    include ::Albatross::ParamTools
 
     def node_groups(node)
       n = if node.class <= String then store.getNode(node) else node end
@@ -139,7 +180,7 @@ module Albatross
     end
 
     def build_feature(feature_name, feature_params, kwa={})
-      kwdef = { :op => 'replace', :verbosity => 0 }
+      kwdef = { :op => 'replace', :verbosity => try_params(:verbosity, 0) }
       kwa = kwdef.merge(kwa)
 
       puts "build_feature: %s" % feature_name if kwa[:verbosity] > 0
@@ -156,7 +197,7 @@ module Albatross
 
 
     def build_execute_feature(feature_name, kwa={})
-      kwdef = { :verbosity => 0, :startd => 1, :slots => 1, :dynamic => 0, 
+      kwdef = { :verbosity => try_params(:verbosity, 0), :startd => 1, :slots => 1, :dynamic => 0, 
                 :dl_append => true, :dedicated => true, :preemption => false, :ad_machine => false }
       kwa = kwdef.merge(kwa)
 
@@ -229,7 +270,7 @@ module Albatross
 
 
     def build_scheduler_feature(feature_name, kwa={})
-      kwdef = { :verbosity => 0, :schedd => 1, :dl_append => true }
+      kwdef = { :verbosity => try_params(:verbosity, 0), :schedd => 1, :dl_append => true }
       kwa = kwdef.merge(kwa)
 
       if kwa[:verbosity] > 0 then
@@ -273,7 +314,7 @@ module Albatross
 
 
     def build_collector_feature(feature_name, kwa={})
-      kwdef = { :verbosity => 0, :collector => 1, :portstart => 10000, :dl_append => true, :disable_plugins => true }
+      kwdef = { :verbosity => try_params(:verbosity, 0), :collector => 1, :portstart => 10000, :dl_append => true, :disable_plugins => true }
       kwa = kwdef.merge(kwa)
 
       if kwa[:verbosity] > 0 then
@@ -318,7 +359,7 @@ module Albatross
 
 
     def build_accounting_group_feature(feature_name, group_tuples, kwa={})
-      kwdef = { :verbosity => 0, :accept_surplus => false }
+      kwdef = { :verbosity => try_params(:verbosity, 0), :accept_surplus => false }
       kwa = kwdef.merge(kwa)
       
       if kwa[:verbosity] > 0 then
@@ -349,10 +390,11 @@ module Albatross
 
 
     def select_nodes(nodes, kwa={})
-      kwdef = { :verbosity => 0, :with_feats => nil, :without_feats => nil, :with_groups => nil, :without_groups => nil, 
+      kwdef = { :verbosity => try_params(:verbosity, 0), :with_feats => nil, :without_feats => nil, :with_groups => nil, :without_groups => nil, 
         :checkin_since => (Time.now.to_f - (3600 + 5*60)), 
-        :white => nil, :black => nil }
+        :white => try_params(:white), :black => try_params(:black) }
       kwa = kwdef.merge(kwa)
+
       Albatross.to_array(kwa, :with_feats)
       Albatross.to_array(kwa, :without_feats)
       Albatross.to_array(kwa, :with_groups)
@@ -361,24 +403,29 @@ module Albatross
       # subtract the set of nodes that aren't known to the wallaby store:
       s = nodes - store.checkNodeValidity(nodes) 
 
-      puts "since= %16.6f" % [kwa[:checkin_since]]
-
       r = []
       s.map {|x| store.getNode(x)}.each do |node|
         checkin = node.last_checkin.to_f / 1000000.0
-        puts "node name= %s  checkin= %16.6f" % [node.name, checkin]
+        puts "node name= %s  checkin= %16.6f" % [node.name, checkin] if kwa[:verbosity] > 0
 
         # if node hasn't checked in since given time threshold, ignore it
         next if (checkin) < kwa[:checkin_since]
 
-        g = node_groups(node).map {|x| x.name}
-        puts "groups= %s" % [g.join(" ")]
-        f = node_features(node).map {|x| x.name}
-        puts "features= %s" % [f.join(" ")]
-        next if (kwa[:with_feats] - f).length > 0
-        next if (kwa[:without_feats] & f).length > 0
-        next if (kwa[:with_groups] - g).length > 0
-        next if (kwa[:without_groups] & g).length > 0
+        # black and white lists
+        next if kwa[:black] and node.name.match(Regexp.new("^"+kwa[:black]+"$"))
+        next if kwa[:white] and not node.name.match(Regexp.new("^"+kwa[:white]+"$"))
+
+        if (kwa[:with_groups].length > 0) or (kwa[:without_groups].length > 0) then
+          g = node_groups(node).map {|x| x.name}
+          next if (kwa[:with_groups] - g).length > 0
+          next if (kwa[:without_groups] & g).length > 0
+        end
+
+        if (kwa[:with_feats].length > 0) or (kwa[:without_feats].length > 0) then
+          f = node_features(node).map {|x| x.name}
+          next if (kwa[:with_feats] - f).length > 0
+          next if (kwa[:without_feats] & f).length > 0
+        end
 
         r << node.name
       end
@@ -391,9 +438,11 @@ module Albatross
 
   # Similar to WallabyTools, but for examining condor pools
   module CondorTools
+    include ParamTools
+
     # nodes reporting to condor pool
     def condor_nodes(kwa={})
-      kwdef = { :verbosity => 0, :with_groups => nil, :constraints => nil }
+      kwdef = { :verbosity => try_params(:verbosity, 0), :with_groups => nil, :constraints => nil }
       kwa = kwdef.merge(kwa)
 
       Albatross.to_array(kwa, :with_groups)
