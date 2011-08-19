@@ -661,7 +661,7 @@ class condor_unit_test(unittest.TestCase):
             params["SCHEDD.%s.SCHEDD_LOG"%(locname)] = "$(LOG)/SchedLog%s"%(tag)
             params["SCHEDD.%s.SCHEDD_ADDRESS_FILE"%(locname)] = "$(LOG)/.schedd%s-address"%(tag)
             params["SCHEDD.%s.SPOOL"%(locname)] = "$(SPOOL).%s"%(tag)
-            params["SCHEDD.%s.HISTORY"%(locname)] = "$(SPOOL)/history_%d"%(tag)
+            params["SCHEDD.%s.HISTORY"%(locname)] = "$(SPOOL)/history.s%d"%(tag)
             #params["SCHEDD.%s.SCHEDD_DAEMON_AD_FILE"%(locname)] = "$(LOG)/.schedd%s-daemon-ad"%(tag)
 
         params["DAEMON_LIST"] = daemon_list
