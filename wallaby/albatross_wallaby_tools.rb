@@ -260,6 +260,8 @@ module Albatross
         params["SCHEDD.%s.SCHEDD_NAME"%(locname)] = locname
         params["SCHEDD.%s.SCHEDD_LOG"%(locname)] = "$(LOG)/SchedLog%s"%(tag)
         params["SCHEDD.%s.SCHEDD_ADDRESS_FILE"%(locname)] = "$(LOG)/.schedd%s-address"%(tag)
+        params["SCHEDD.%s.SPOOL"%(locname)] = "$(SPOOL).%s"%(tag)
+        params["SCHEDD.%s.HISTORY"%(locname)] = "$(SPOOL)/history.s%s"%(tag)
       end
 
       params["DAEMON_LIST"] = daemon_list
@@ -301,6 +303,7 @@ module Albatross
         params["COLLECTOR%s_ENVIRONMENT"%(tag)] = "_CONDOR_COLLECTOR_LOG=$(LOG)/CollectorLog%s"%(tag)
         params["COLLECTOR.%s.COLLECTOR_NAME"%(locname)] = locname
         params["COLLECTOR.%s.CONDOR_VIEW_HOST"%(locname)] = "$(COLLECTOR_HOST)"
+        params["COLLECTOR.%s.COLLECTOR_ADDRESS_FILE"%(locname)] = "$(LOG)/.collector%s-address"%(tag)
         if kwa[:disable_plugins] then
           params["COLLECTOR.%s.PLUGINS"%(locname)] = ""
         end
