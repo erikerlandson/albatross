@@ -59,13 +59,11 @@ module Mrg
             include ::Albatross::CondorTools
 
             def suite_setup
-              # call super first
-              super
+              super # call super first, before test-specific setup
             end
 
             def suite_teardown
-              # call super last
-              super
+              super # call super last, after test-specific teardown
             end
 
             def test_submit

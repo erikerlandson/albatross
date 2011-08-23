@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+require 'socket'
 require 'test/unit'
 require 'test/unit/testsuite'
 
@@ -93,6 +94,16 @@ module Albatross
         pmap[:black] = v
       end
 
+      pmap[:restore] = true
+      opts.on("--[no-]restore", "restore pre-test configuration: def= %s" % [pmap[:restore]]) do |v|
+        pmap[:restore] = v
+      end
+
+      pmap[:condor_host] = Socket.gethostbyname(Socket.gethostname).first
+      opts.on("--condor-host HOSTNAME", "condor pool host: def= %s" % [pmap[:condor_host]]) do |v|
+        pmap[:condor_host] = v
+      end
+
       opts
     end
 
@@ -112,14 +123,28 @@ module Albatross
       store.makeSnapshot(name)
     end
 
+    def load_snapshot(name, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwa = kwdef.merge(kwa)
+      puts "loading snapshot %s" % [name] if kwa[:verbosity] > 0
+      store.loadSnapshot(name)
+    end
+
     # default suite setup/teardown
     def suite_setup
+      puts "WallabyUnitTestTools.suite_setup" if try_params(:verbosity, 0) > 0
+      @fq_hostname = Socket.gethostbyname(Socket.gethostname).first
       @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
       @pretest_snapshot = "albatross_wallaby_utt_%s_pretest" % (@test_date)
       take_snapshot(@pretest_snapshot)
     end
 
     def suite_teardown
+      puts "WallabyUnitTestTools.suite_teardown" if try_params(:verbosity, 0) > 0
+      if try_params(:restore, true) then
+        load_snapshot(@pretest_snapshot)
+        config.activateConfiguration(_timeout=60)
+      end
     end
 
     # A dummy test to pacify Test::Unit while I subvert it's behavior.
@@ -168,9 +193,12 @@ module Albatross
   module WallabyTools
     include ::Albatross::ParamTools
 
+    class Exception < ::Exception
+    end
+
     def node_groups(node)
-      n = if node.class <= String then store.getNode(node) else node end
-      (["+++DEFAULT"] + n.memberships + [n.identity_group.name]).map { |gn| store.getGroupByName(gn) }
+      node = store.getNode(node) if node.class <= String
+      (["+++DEFAULT"] + node.memberships + [node.identity_group.name]).map { |gn| store.getGroupByName(gn) }
     end
 
     def node_features(node)
@@ -178,6 +206,41 @@ module Albatross
       node_groups(node).each { |g| f |= g.features }
       f.map { |fn| store.getFeature(fn) }
     end
+
+
+    def clear_nodes(nodes, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwa = kwdef.merge(kwa)
+
+      nodes.each do |node|
+        node = store.getNode(node) if node.class <= String
+        puts "clear_nodes: clearing node %s configuration" % [node.name] if kwa[:verbosity] > 0
+
+        node.modifyMemberships('replace', [])
+        node.identity_group.modifyFeatures('replace', [])
+        node.identity_group.modifyParams('replace', {})
+      end
+    end
+
+
+    def set_group_features(feature_names, group_names, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwa = kwdef.merge(kwa)
+
+      feature_names = [ feature_names ] unless feature_names.class <= Array
+      group_names = [ group_names ] unless group_names.class <= Array
+
+      missing = store.checkGroupValidity(group_names)
+      raise(::Albatross::Wallaby::Exception, "missing groups: %s" % [missing.join(" ")]) if not missing.empty?
+      missing = store.checkFeatureValidity(feature_names)
+      raise(::Albatross::Wallaby::Exception, "missing features: %s" % [missing.join(" ")]) if not missing.empty?
+
+      group_names.each do |group|
+        group = store.getGroupByName(group)
+        group.modifyFeatures(kwa[:op], feature_names)
+      end
+    end
+
 
     def build_feature(feature_name, feature_params, kwa={})
       kwdef = { :op => 'replace', :verbosity => try_params(:verbosity, 0) }
@@ -193,6 +256,26 @@ module Albatross
       end
 
       feature.modifyParams(kwa[:op], feature_params)
+    end
+
+
+    def build_access_feature(feature_name, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), 
+                :condor_host => try_params(:condor_host, Socket.gethostbyname(Socket.gethostname).first),
+                :collector_host => nil }
+      kwa = kwdef.merge(kwa)
+      puts "build_access_feature: %s condor-host= %s" % [feature_name, kwa[:condor_host]] if kwa[:verbosity] > 0
+
+      kwa[:collector_host] = kwa[:condor_host] unless kwa[:collector_host]
+
+      params={}
+      params["CONDOR_HOST"] = kwa[:condor_host]
+      params["COLLECTOR_HOST"] = kwa[:collector_host]
+      params["ALLOW_WRITE"] = "*"
+      params["ALLOW_READ"] = "*"
+      params["SEC_DEFAULT_AUTHENTICATION_METHODS"] = "CLAIMTOBE"
+      
+      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
     end
 
 
@@ -439,6 +522,9 @@ module Albatross
   # Similar to WallabyTools, but for examining condor pools
   module CondorTools
     include ParamTools
+
+    class Exception < ::Exception
+    end
 
     # nodes reporting to condor pool
     def condor_nodes(kwa={})
