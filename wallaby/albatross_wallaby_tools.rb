@@ -18,19 +18,21 @@ require 'test/unit/testsuite'
 
 
 module Albatross
-
-  def self.to_array(kwa, p)
-    v = kwa[p]
-    if v.nil? then
-      v = []
-    elsif not (v.class <= Array) then
-      v = [v]
+  module Utils
+    def to_array(kwa, p)
+      v = kwa[p]
+      if v.nil? then
+        v = []
+      elsif not (v.class <= Array) then
+        v = [v]
+      end
+      kwa[p] = v
     end
-    kwa[p] = v
-  end
 
+    def array_to_s(a)
+      "[" + a.join(", ") + "]"
+    end
 
-  module ParamTools
     def try_params(key, dval = nil)
       return dval if not respond_to?(:params)
       return dval if not (params.class <= Hash)
@@ -39,7 +41,6 @@ module Albatross
     end
   end
 
-
   # The purpose of this module is to allow Test::Unit::TestCase objects
   # to have parameters set on them (in this case, via variables on their singleton-class)
   # before an actual instance of the test is declared.  I'm doing this because the Test::Unit
@@ -47,7 +48,7 @@ module Albatross
   # parameters.  Intead, I give the parameters to the singleton-class (rather like making them
   # global to all instances of the class): so any variables set this way cannot be test-specific.
   module WallabyUnitTestTools
-    include ParamTools
+    include ::Albatross::Utils
 
     module ClassMethods
       # accessors for store
@@ -80,8 +81,12 @@ module Albatross
 
     def self.options(opts, pmap)
       pmap[:verbosity] = 0
-      opts.on("-v", "--verbose", "verbose output") do
+      opts.on("-v", "--verbose", "verbose output, = --verbosity 1") do
         pmap[:verbosity] = 1
+      end
+
+      opts.on("--verbosity N", "set verbosity to level N: def= %d" % [pmap[:verbosity]]) do |n|
+        pmap[:verbosity] = n
       end
 
       pmap[:white] = nil
@@ -191,7 +196,7 @@ module Albatross
   # a wallaby store variable named 'store', for example ::Mrg::Grid::Config::Shell::Command
   # or a class mixed in with WallabyUnitTestTools, above
   module WallabyTools
-    include ::Albatross::ParamTools
+    include ::Albatross::Utils
 
     class Exception < ::Exception
     end
@@ -223,21 +228,97 @@ module Albatross
     end
 
 
-    def set_group_features(feature_names, group_names, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+    def declare_groups(group_names, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwa = kwdef.merge(kwa)
+
+      group_names = [ group_names ] unless group_names.class <= Array
+      group_names = store.checkGroupValidity(group_names)
+
+      puts "declare_groups: declaring new groups %s" % [array_to_s(group_names)] if kwa[:verbosity] > 0
+
+      group_names.each do |name|
+        store.addExplicitGroup(name)
+      end
+    end
+
+
+    def declare_features(feature_names, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0) }
       kwa = kwdef.merge(kwa)
 
       feature_names = [ feature_names ] unless feature_names.class <= Array
+      feature_names = store.checkFeatureValidity(feature_names)
+
+      puts "declare_features: declaring new features %s" % [array_to_s(feature_names)] if kwa[:verbosity] > 0
+
+      group_names.each do |name|
+        store.addFeature(name)
+      end
+    end
+
+
+    def set_group_features(group_names, feature_names, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwa = kwdef.merge(kwa)
+
       group_names = [ group_names ] unless group_names.class <= Array
+      feature_names = [ feature_names ] unless feature_names.class <= Array
 
       missing = store.checkGroupValidity(group_names)
-      raise(::Albatross::Wallaby::Exception, "missing groups: %s" % [missing.join(" ")]) if not missing.empty?
+      raise(::Albatross::WallabyTools::Exception, "missing groups: %s" % [array_to_s(missing)]) if not missing.empty?
       missing = store.checkFeatureValidity(feature_names)
-      raise(::Albatross::Wallaby::Exception, "missing features: %s" % [missing.join(" ")]) if not missing.empty?
+      raise(::Albatross::WallabyTools::Exception, "missing features: %s" % [array_to_s(missing)]) if not missing.empty?
+
+      puts "set_group_features: setting features %s on groups %s" % [array_to_s(feature_names), array_to_s(group_names)] if kwa[:verbosity] > 0
 
       group_names.each do |group|
         group = store.getGroupByName(group)
-        group.modifyFeatures(kwa[:op], feature_names)
+        if kwa[:op] == 'insert' then
+          group.modifyFeatures('replace', feature_names + group.features)
+        else
+          group.modifyFeatures(kwa[:op], feature_names)
+        end
+      end
+    end
+
+
+    def set_node_features(node_names, feature_names, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwa = kwdef.merge(kwa)
+
+      node_names = [ node_names ] unless node_names.class <= Array
+
+      missing = store.checkNodeValidity(node_names)
+      raise(::Albatross::WallabyTools::Exception, "missing nodes: %s" % [array_to_s(missing)]) if not missing.empty?
+
+      puts "set_node_features: setting features %s on nodes %s" % [array_to_s(feature_names), array_to_s(node_names)] if kwa[:verbosity] > 0
+
+      set_group_features(node_names.map { |name| store.getNode(name).identity_group.name }, feature_names, kwa)
+    end
+
+
+    def set_node_groups(node_names, group_names, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwa = kwdef.merge(kwa)
+
+      node_names = [ node_names ] unless node_names.class <= Array
+      group_names = [ group_names ] unless group_names.class <= Array
+
+      missing = store.checkNodeValidity(node_names)
+      raise(::Albatross::WallabyTools::Exception, "missing nodes: %s" % [array_to_s(missing)]) if not missing.empty?
+      missing = store.checkGroupValidity(group_names)
+      raise(::Albatross::WallabyTools::Exception, "missing groups: %s" % [array_to_s(missing)]) if not missing.empty?
+
+      puts "set_node_groups: setting groups %s on nodes %s" % [array_to_s(group_names), array_to_s(node_names)] if kwa[:verbosity] > 0
+
+      node_names.each do |node|
+        node = store.getNode(node)
+        if kwa[:op] == 'insert' then
+          node.modifyMemberships('replace', group_names + node.memberships)
+        else
+          node.modifyMemberships(kwa[:op], group_names)
+        end
       end
     end
 
@@ -251,7 +332,7 @@ module Albatross
       feature = store.getFeature(feature_name)
 
       store.checkParameterValidity(feature_params.keys).each do|param|
-        puts "build_feature: declaring parameter %s" % param if kwa[:verbosity] > 0
+        puts "build_feature: declaring parameter %s" % param if kwa[:verbosity] >= 2
         store.addParam(param)
       end
 
@@ -478,10 +559,10 @@ module Albatross
         :white => try_params(:white), :black => try_params(:black) }
       kwa = kwdef.merge(kwa)
 
-      Albatross.to_array(kwa, :with_feats)
-      Albatross.to_array(kwa, :without_feats)
-      Albatross.to_array(kwa, :with_groups)
-      Albatross.to_array(kwa, :without_groups)
+      to_array(kwa, :with_feats)
+      to_array(kwa, :without_feats)
+      to_array(kwa, :with_groups)
+      to_array(kwa, :without_groups)
 
       # subtract the set of nodes that aren't known to the wallaby store:
       s = nodes - store.checkNodeValidity(nodes) 
@@ -521,7 +602,7 @@ module Albatross
 
   # Similar to WallabyTools, but for examining condor pools
   module CondorTools
-    include ParamTools
+    include ::Albatross::Utils
 
     class Exception < ::Exception
     end
@@ -531,8 +612,8 @@ module Albatross
       kwdef = { :verbosity => try_params(:verbosity, 0), :with_groups => nil, :constraints => nil }
       kwa = kwdef.merge(kwa)
 
-      Albatross.to_array(kwa, :with_groups)
-      Albatross.to_array(kwa, :constraints)
+      to_array(kwa, :with_groups)
+      to_array(kwa, :constraints)
 
       cmd = "condor_status -master"
       cexpr = "True"
