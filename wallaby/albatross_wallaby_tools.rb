@@ -39,7 +39,7 @@ module Albatross
       return dval if not params.has_key?(key)
       return params[key]
     end
-  end
+  end # module Utils
 
   # The purpose of this module is to allow Test::Unit::TestCase objects
   # to have parameters set on them (in this case, via variables on their singleton-class)
@@ -189,7 +189,7 @@ module Albatross
         include ClassMethods
       end
     end
-  end
+  end # module WallabyUnitTestTools
 
 
   # The WallabyTools module is designed to be mixed-in with a class that provides
@@ -641,6 +641,153 @@ module Albatross
 
       return nodes
     end
-  end
+
+
+    def poll_for_slots(nslots, kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :group => nil, :interval => 30, :maxtime => 300, :required => nil, :expected => nil }
+      kwa = kwdef.merge(kwa)
+
+      cmd = "condor_status -subsystem startd -format \"%s\\n\" Name"
+      cmd += "-constraint 'stringListMember(\"%s\", WallabyGroups)'" % [kwa[:group]]  if kwa[:group]
+      cmd += " | wc -l"
+
+      t0 = Time.now.to_i
+      cnodes = nil
+      while true
+        if kwa[:verbosity] > 0 then
+          msg = "Waiting %d seconds for %d slots " % [kwa[:interval], nslots]
+          msg += "from group %s " % [kwa[:group]] if kwa[:group]
+          msg += "to spool up:"
+          puts msg
+        end
+
+        sleep(kwa[:interval])
+
+        n = 0
+        begin
+          IO.popen(cmd) { |input| n = Integer(input.readline.strip) }
+        rescue
+          n = 0
+        end
+
+        elapsed = Time.now - t0
+        puts "elapsed= %d sec  slots= %d/%d:\n" % [elapsed.to_i, n, nslots] if kwa[:verbosity] > 0
+        break if n >= nslots
+
+        if kwa[:expected] and (kwa[:verbosity] > 0) then
+          cnodes = condor_nodes(:with_groups => kwa[:group]) unless cnodes
+          missing = kwa[:expected] - cnodes
+          puts "missing nodes: %s" % [array_to_s(missing)]
+        end
+        if kwa[:elapsed] > kwa[:maxtime] then
+          break if kwa[:required] and (n >= kwa[:required])
+          raise(::Albatross::CondorTools::Exception, "Exceeded maximum polling time %d" % [kwa[:maxtime]])
+        end
+      end
+    end
+
+    def remove_jobs(kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [] }
+      kwa = kwdef.merge(kwa)
+
+      if kwa[:cluster] then
+        cmd = "condor_rm -constraint 'ClusterId==%d'" % [kwa[:cluster]]
+      elsif kwa[:tag] then
+        cmd = "condor_rm -constraint '%s=?=\"%s\"'" % [kwa[:tagvar], kwa[:tag]]
+      else
+        cmd = "condor_rm -all"
+      end
+
+      if kwa[:schedd].length <= 0 then
+        IO.popen(cmd)
+      else
+        kwa[:schedd].each do |name|
+          scmd = cmd + (" -name '%s'" % [name])
+          IO.popen(scmd)
+        end
+      end
+    end
+
+    def job_count(kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [], :raise_on_err => false }
+      kwa = kwdef.merge(kwa)
+      
+      if kwa[:cluster] then
+        cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint 'ClusterId==%d'" % [kwa[:cluster]]
+      elsif kwa[:tag] then
+        cmd = "condor_q -format \"%%s\\n\" GlobalJobId -constraint '%s=?=\"%s\"'" % [kwa[:tagvar], kwa[:tag]]
+      else
+        cmd = "condor_q -format \"%s\\n\" GlobalJobId"
+      end
+      
+      if kwa[:schedd].length <= 0 then
+        cmd_list = [cmd]
+      else
+        cmd_list = kwa[:schedd].map { |s| cmd + (" -name '%s'" % [s]) }
+      end
+
+      cmd_list = cmd_list.map { |c| c + " | wc -l" }
+
+      n = 0
+      cmd_list.each do |cmd|
+        t = 0
+        begin
+          IO.popen(cmd) { |input| t = Integer(input.readline.strip) }
+        rescue
+          puts "job_count: exception on command:\n%s" % [cmd] if kwa[:verbosity] > 0
+          raise if kwa[:raise_on_err]
+          t = 0
+        end
+        n += t
+      end
+
+      n
+    end
+
+    def poll_for_empty_job_queue(kwa={})
+      kwdef = { :verbosity => try_params(:verbosity, 0), :interval => 30, :maxtime => 300, :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => []}
+      kwa = kwdef.merge(kwa)
+
+      begin
+        n0 = job_count(kwa.merge({:raise_on_err => true}))
+      rescue
+        n0 = 99999999
+      end
+
+      t0 = Time.now.to_i
+      tL = t0
+      nL = n0
+      while true
+        if kwa[:verbosity] > 0 then
+          msg = "Waiting %s seconds for job que to clear " % [kwa[:interval]]
+          if kwa[:cluster] then
+            msg += "for cluster %d" % [kwa[:cluster]]
+          elsif kwa[:tag] then
+            msg += "for %s==\"%s\"" % [kwa[:tagvar], kwa[:tag]]
+          end
+          puts msg
+        end
+        sleep(kwa[:interval])
+
+        begin
+          n = job_count(kwa.merge({:raise_on_err => true}))
+        rescue
+          n = nL
+        end
+
+        tC = Time.now.to_i
+        elapsed = tC - t0
+        elapsedI = tC - tL
+        rate = Float(n0-n)/Float(elapsed)
+        rateI = float(nL-n)/float(elapsedI)
+        puts "elapsed= %d sec   interval= %d sec   jobs= %d   rate= %f  cum-rate= %f:\n" % [Integer(elapsed), Integer(elapsedI), n, rateI, rate] if kwa[:verbosity] > 0
+        break if n <= 0
+        raise(::Albatross::CondorTools::Exception, "Exceeded max polling time %d" % [kwa[:maxtime]]) if elapsed > kwa[:maxtime]
+        nL = n
+        tL = tC
+      end
+    end
+
+  end # module CondorTools
 
 end # module Albatross
