@@ -67,15 +67,11 @@ module Mrg
             end
 
             def test_submit
-              puts "verbosity= " + params[:verbosity].to_s
-              
-              puts "td= " + @test_date
+              nodes = condor_nodes()
+              log.info("nodes= %s" % [nodes.join(" ")])
 
-              nodes = condor_nodes(:verbosity => 1)
-              puts "nodes= %s" % [nodes.join(" ")]
-
-              nodes = select_nodes(nodes, :checkin_since => 0, :verbosity => 1)
-              puts "nodes= %s" % [nodes.join(" ")]
+              nodes = select_nodes(nodes, :checkin_since => 0)
+              log.info("nodes= %s" % [nodes.join(" ")])
               
 
             end

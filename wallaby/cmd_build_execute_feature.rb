@@ -36,17 +36,9 @@ module Mrg
         
           def init_option_parser
             # Edit this method to generate a method that parses your command-line options.
-            @feature_name = ''
-            @verbosity = 0
-            @nstartd = 1
-            @nslots = 1
-            @ndynamic = 0
-            @dl_append = true
-            @dedicated = true
-            @preemption = false
-            @ad_machine = false
+            @params = {}
 
-            OptionParser.new do |opts|
+            optp = OptionParser.new do |opts|
               opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
         
               opts.on("-h", "--help", "displays this message") do
@@ -54,48 +46,55 @@ module Mrg
                 exit
               end
 
+              @params[:feature_name] = ''
               opts.on("-f", "--feature NAME", "feature name") do |name|
-                @feature_name = name
+                @params[:feature_name] = name
               end
 
-              opts.on("--nstartd N", Integer, "number of startds: def= %s" % [@nstartd]) do |n|
-                @nstartd = n
+              @params[:startd] = 1
+              opts.on("--nstartd N", Integer, "number of startds: def= %s" % [@params[:startd]]) do |n|
+                @params[:startd] = n
               end
 
-              opts.on("--nslots N", Integer, "number of slots per startd: def= %s" % [@nslots]) do |n|
-                @nslots = n
+              @params[:slots] = 1
+              opts.on("--nslots N", Integer, "number of slots per startd: def= %s" % [@params[:slots]]) do |n|
+                @params[:slots] = n
               end
 
-              opts.on("--ndynamic N", Integer, "number of dynamic slots per slot: def= %s" % [@ndynamic]) do |n|
-                @ndynamic = n
+              @params[:dynamic] = 0
+              opts.on("--ndynamic N", Integer, "number of dynamic slots per slot: def= %s" % [@params[:dynamic]]) do |n|
+                @params[:dynamic] = n
               end
 
-              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@dl_append]) do |v|
-                @dl_append = v
+              @params[:dl_append] = true
+              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@params[:dl_append]]) do |v|
+                @params[:dl_append] = v
               end
 
-              opts.on("--[no-]dedicated", "dedicated execute node: def= %s" % [@dedicated]) do |v|
-                @dedicated = v
+              @params[:dedicated] = true
+              opts.on("--[no-]dedicated", "dedicated execute node: def= %s" % [@params[:dedicated]]) do |v|
+                @params[:dedicated] = v
               end
 
-              opts.on("--[no-]preemption", "enable preemption: def= %s" % [@preemption]) do |v|
-                @preemption = v
+              @params[:preemption] = false
+              opts.on("--[no-]preemption", "enable preemption: def= %s" % [@params[:preemption]]) do |v|
+                @params[:preemption] = v
               end
 
-              opts.on("--[no-]ad-machine", "advertise machine name per startd: def= %s" % [@ad_machine]) do |v|
-                @ad_machine = v
-              end
-
-              opts.on("-v", "--verbose", "verbose output") do
-                @verbosity = 1
+              @params[:ad_machine] = false
+              opts.on("--[no-]ad-machine", "advertise machine name per startd: def= %s" % [@params[:ad_machine]]) do |v|
+                @params[:ad_machine] = v
               end
             end
+
+            ::Albatross::LogUtils.options(optp, @params)
           end
         
           def act
-            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
-            build_execute_feature(@feature_name, :verbosity => @verbosity, :startd => @nstartd, :slots => @nslots, :dynamic => @ndynamic,
-                                  :dl_append => @dl_append, :dedicated => @dedicated, :preemption => @preemption, :ad_machine => @ad_machine)
+            self.class.params=(@params)
+            if @params[:feature_name] == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
+            build_execute_feature(@params[:feature_name], @params)
+
             return 0
           end
         end

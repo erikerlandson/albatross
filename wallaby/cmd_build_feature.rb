@@ -37,11 +37,8 @@ module Mrg
           def init_option_parser
             # Edit this method to generate a method that parses your command-line options.
             @params = {}
-            @operation = 'replace'
-            @feature_name = ''
-            @verbosity = 0
 
-            OptionParser.new do |opts|
+            optp = OptionParser.new do |opts|
               opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
         
               opts.on("-h", "--help", "displays this message") do
@@ -49,28 +46,30 @@ module Mrg
                 exit
               end
 
+              @params[:feature_name] = ''
               opts.on("-f", "--feature NAME", "feature name") do |name|
-                @feature_name = name
+                @params[:feature_name] = name
               end
 
+              @params[:params] = {}
               opts.on("-p", "--param PARAM[,VAL]", Array, "parameter and value pair: may appear > once") do |pair|
-                @params[pair[0]] = 0 if pair.length == 1
-                @params[pair[0]] = pair[1] if pair.length == 2
+                @params[:params][pair[0]] = 0 if pair.length == 1
+                @params[:params][pair[0]] = pair[1] if pair.length == 2
               end
 
-              opts.on("-o", "--operation OP", [:replace, :add, :remove], "feature editing option: def= %s" % [@operation]) do |op|
-                @operation = case op when :replace; "replace" when :add; "add" when :remove; "remove" end
-              end
-
-              opts.on("-v", "--verbose", "verbose output") do
-                @verbosity = 1
+              @params[:operation] = 'replace'
+              opts.on("-o", "--operation OP", [:replace, :add, :remove], "feature editing option: def= %s" % [@params[:operation]]) do |op|
+                @params[:operation] = op.to_s
               end
             end
+
+            ::Albatross::LogUtils.options(optp, @params)
           end
         
           def act
-            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
-            build_feature(@feature_name, @params, :op => @operation, :verbosity => @verbosity)
+            self.class.params=(@params)
+            if @params[:feature_name] == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
+            build_feature(@params[:feature_name], @params[:params], :op => @params[:operation])
             return 0
           end
         end

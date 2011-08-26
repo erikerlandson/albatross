@@ -12,13 +12,93 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+require 'logger'
 require 'socket'
 require 'test/unit'
 require 'test/unit/testsuite'
 
 
 module Albatross
+  module ParamUtils
+    module ClassMethods
+      # accessors for params
+      def params=(params)
+        @params = params
+      end
+      def params
+        return @params
+      end
+    end
+
+    # instance accessor for params (params is global to class)
+    def params
+      return self.class.params
+    end
+
+    def try_params(key, dval = nil)
+      return dval if not respond_to?(:params)
+      return dval if not (params.class <= Hash)
+      return dval if not params.has_key?(key)
+      return params[key]
+    end
+
+    def self.included(base)
+      class << base
+        include ClassMethods
+      end
+    end
+  end
+
+
+  module LogUtils
+    include ::Albatross::ParamUtils
+
+    def log
+      if not instance_variable_defined?('@log') then
+        @log = Logger.new(try_params(:log_device, STDOUT))
+        @log.level = try_params(:log_level, Logger::INFO)
+      end
+      return @log
+    end
+
+    def self.options(opts, pmap)
+      opts.separator("\nalbatross logging options")
+
+      pmap[:log_level] = Logger::INFO
+      opts.on("--log-level LEVEL", ['debug', 'info', 'warn', 'error', 'fatal', 'unknown'], "{debug|info|warn|error|fatal|unknown}: def= info") do |v|
+        v = v.strip.upcase
+        if v == "DEBUG" then
+          pmap[:log_level] = Logger::DEBUG
+        elsif v == "INFO" then
+          pmap[:log_level] = Logger::INFO
+        elsif v == "WARN" then
+          pmap[:log_level] = Logger::WARN
+        elsif v == "ERROR" then
+          pmap[:log_level] = Logger::ERROR
+        elsif v == "FATAL" then
+          pmap[:log_level] = Logger::FATAL
+        else
+          pmap[:log_level] = Logger::UNKNOWN
+        end
+      end
+
+      pmap[:log_device] = STDOUT
+      opts.on("--log-device DEVICE", "set logging device: def= stdout") do |v|
+        if v.strip.upcase == "STDOUT" then
+          pmap[:log_device] = STDOUT
+        elsif v.strip.upcase == "STDERR" then
+          pmap[:log_device] = STDERR
+        else
+          pmap[:log_device] = v
+        end
+      end
+    end
+  end
+
   module Utils
+    include ::Albatross::ParamUtils
+    include ::Albatross::LogUtils
+
     def to_array(kwa, p)
       v = kwa[p]
       if v.nil? then
@@ -32,14 +112,8 @@ module Albatross
     def array_to_s(a)
       "[" + a.join(", ") + "]"
     end
-
-    def try_params(key, dval = nil)
-      return dval if not respond_to?(:params)
-      return dval if not (params.class <= Hash)
-      return dval if not params.has_key?(key)
-      return params[key]
-    end
   end # module Utils
+
 
   # The purpose of this module is to allow Test::Unit::TestCase objects
   # to have parameters set on them (in this case, via variables on their singleton-class)
@@ -59,14 +133,6 @@ module Albatross
         return @store
       end
 
-      # accessors for params
-      def params=(params)
-        @params = params
-      end
-      def params
-        return @params
-      end
-
       # Override #suite so that it instantiates a single instance
       # of the test class.  Designed to work with the override of .run below
       def suite
@@ -80,14 +146,7 @@ module Albatross
 
 
     def self.options(opts, pmap)
-      pmap[:verbosity] = 0
-      opts.on("-v", "--verbose", "verbose output, = --verbosity 1") do
-        pmap[:verbosity] = 1
-      end
-
-      opts.on("--verbosity N", "set verbosity to level N: def= %d" % [pmap[:verbosity]]) do |n|
-        pmap[:verbosity] = n
-      end
+      opts.separator("\nalbatross unit testing options")
 
       pmap[:white] = nil
       opts.on("--white REGEXP", "target node white-list regexp") do |v|
@@ -109,6 +168,8 @@ module Albatross
         pmap[:condor_host] = v
       end
 
+      ::Albatross::LogUtils.options(opts, pmap)
+
       opts
     end
 
@@ -116,28 +177,24 @@ module Albatross
     def store
       return self.class.store
     end
-    # instance accessor for params (params is global to class)
-    def params
-      return self.class.params
-    end
 
     def take_snapshot(name, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwdef = {}
       kwa = kwdef.merge(kwa)
-      puts "snapshotting current store to %s" % [name] if kwa[:verbosity] > 0
+      log.info("snapshotting current store to %s" % [name])
       store.makeSnapshot(name)
     end
 
     def load_snapshot(name, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwdef = {}
       kwa = kwdef.merge(kwa)
-      puts "loading snapshot %s" % [name] if kwa[:verbosity] > 0
+      log.info("loading snapshot %s" % [name])
       store.loadSnapshot(name)
     end
 
     # default suite setup/teardown
     def suite_setup
-      puts "WallabyUnitTestTools.suite_setup" if try_params(:verbosity, 0) > 0
+      log.debug("WallabyUnitTestTools.suite_setup")
       @fq_hostname = Socket.gethostbyname(Socket.gethostname).first
       @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
       @pretest_snapshot = "albatross_wallaby_utt_%s_pretest" % (@test_date)
@@ -145,10 +202,10 @@ module Albatross
     end
 
     def suite_teardown
-      puts "WallabyUnitTestTools.suite_teardown" if try_params(:verbosity, 0) > 0
+      log.debug("WallabyUnitTestTools.suite_teardown")
       if try_params(:restore, true) then
         load_snapshot(@pretest_snapshot)
-        config.activateConfiguration(_timeout=60)
+        store.activateConfiguration(_timeout=60)
       end
     end
 
@@ -184,9 +241,9 @@ module Albatross
     def self.included(base)
       # this opens up singleton-class of who we're being mixed into:
       class << base
-        # this mixes the stuff in ClassMethods into the singleton-class
-        # of any class that WallabyUnitTestTools gets mixed into:
         include ClassMethods
+        # why doesn't this get picked up when I include ParamUtils above?
+        include ::Albatross::ParamUtils::ClassMethods
       end
     end
   end # module WallabyUnitTestTools
@@ -214,12 +271,12 @@ module Albatross
 
 
     def clear_nodes(nodes, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwdef = {}
       kwa = kwdef.merge(kwa)
 
       nodes.each do |node|
         node = store.getNode(node) if node.class <= String
-        puts "clear_nodes: clearing node %s configuration" % [node.name] if kwa[:verbosity] > 0
+        log.info("clear_nodes: clearing node %s configuration" % [node.name])
 
         node.modifyMemberships('replace', [])
         node.identity_group.modifyFeatures('replace', [])
@@ -229,13 +286,13 @@ module Albatross
 
 
     def declare_groups(group_names, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwdef = {}
       kwa = kwdef.merge(kwa)
 
       group_names = [ group_names ] unless group_names.class <= Array
       group_names = store.checkGroupValidity(group_names)
 
-      puts "declare_groups: declaring new groups %s" % [array_to_s(group_names)] if kwa[:verbosity] > 0
+      log.info("declare_groups: declaring new groups %s" % [array_to_s(group_names)])
 
       group_names.each do |name|
         store.addExplicitGroup(name)
@@ -244,13 +301,13 @@ module Albatross
 
 
     def declare_features(feature_names, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0) }
+      kwdef = {}
       kwa = kwdef.merge(kwa)
 
       feature_names = [ feature_names ] unless feature_names.class <= Array
       feature_names = store.checkFeatureValidity(feature_names)
 
-      puts "declare_features: declaring new features %s" % [array_to_s(feature_names)] if kwa[:verbosity] > 0
+      log.info("declare_features: declaring new features %s" % [array_to_s(feature_names)])
 
       group_names.each do |name|
         store.addFeature(name)
@@ -259,7 +316,7 @@ module Albatross
 
 
     def set_group_features(group_names, feature_names, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwdef = { :op => 'replace' }
       kwa = kwdef.merge(kwa)
 
       group_names = [ group_names ] unless group_names.class <= Array
@@ -270,7 +327,7 @@ module Albatross
       missing = store.checkFeatureValidity(feature_names)
       raise(::Albatross::WallabyTools::Exception, "missing features: %s" % [array_to_s(missing)]) if not missing.empty?
 
-      puts "set_group_features: setting features %s on groups %s" % [array_to_s(feature_names), array_to_s(group_names)] if kwa[:verbosity] > 0
+      log.info("set_group_features: setting features %s on groups %s" % [array_to_s(feature_names), array_to_s(group_names)])
 
       group_names.each do |group|
         group = store.getGroupByName(group)
@@ -284,7 +341,7 @@ module Albatross
 
 
     def set_node_features(node_names, feature_names, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwdef = { :op => 'replace' }
       kwa = kwdef.merge(kwa)
 
       node_names = [ node_names ] unless node_names.class <= Array
@@ -292,14 +349,14 @@ module Albatross
       missing = store.checkNodeValidity(node_names)
       raise(::Albatross::WallabyTools::Exception, "missing nodes: %s" % [array_to_s(missing)]) if not missing.empty?
 
-      puts "set_node_features: setting features %s on nodes %s" % [array_to_s(feature_names), array_to_s(node_names)] if kwa[:verbosity] > 0
+      log.info("set_node_features: setting features %s on nodes %s" % [array_to_s(feature_names), array_to_s(node_names)])
 
       set_group_features(node_names.map { |name| store.getNode(name).identity_group.name }, feature_names, kwa)
     end
 
 
     def set_node_groups(node_names, group_names, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :op => 'replace' }
+      kwdef = { :op => 'replace' }
       kwa = kwdef.merge(kwa)
 
       node_names = [ node_names ] unless node_names.class <= Array
@@ -310,7 +367,7 @@ module Albatross
       missing = store.checkGroupValidity(group_names)
       raise(::Albatross::WallabyTools::Exception, "missing groups: %s" % [array_to_s(missing)]) if not missing.empty?
 
-      puts "set_node_groups: setting groups %s on nodes %s" % [array_to_s(group_names), array_to_s(node_names)] if kwa[:verbosity] > 0
+      log.info("set_node_groups: setting groups %s on nodes %s" % [array_to_s(group_names), array_to_s(node_names)])
 
       node_names.each do |node|
         node = store.getNode(node)
@@ -324,15 +381,15 @@ module Albatross
 
 
     def build_feature(feature_name, feature_params, kwa={})
-      kwdef = { :op => 'replace', :verbosity => try_params(:verbosity, 0) }
+      kwdef = { :op => 'replace' }
       kwa = kwdef.merge(kwa)
 
-      puts "build_feature: %s" % feature_name if kwa[:verbosity] > 0
+      log.info("build_feature: %s" % [feature_name])
       store.addFeature(feature_name) unless store.checkFeatureValidity([feature_name]) == []
       feature = store.getFeature(feature_name)
 
       store.checkParameterValidity(feature_params.keys).each do|param|
-        puts "build_feature: declaring parameter %s" % param if kwa[:verbosity] >= 2
+        log.debug("build_feature: declaring parameter %s" % [param])
         store.addParam(param)
       end
 
@@ -341,11 +398,10 @@ module Albatross
 
 
     def build_access_feature(feature_name, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), 
-                :condor_host => try_params(:condor_host, Socket.gethostbyname(Socket.gethostname).first),
+      kwdef = { :condor_host => try_params(:condor_host, Socket.gethostbyname(Socket.gethostname).first),
                 :collector_host => nil }
       kwa = kwdef.merge(kwa)
-      puts "build_access_feature: %s condor-host= %s" % [feature_name, kwa[:condor_host]] if kwa[:verbosity] > 0
+      log.info("build_access_feature: %s condor-host= %s" % [feature_name, kwa[:condor_host]])
 
       kwa[:collector_host] = kwa[:condor_host] unless kwa[:collector_host]
 
@@ -356,18 +412,16 @@ module Albatross
       params["ALLOW_READ"] = "*"
       params["SEC_DEFAULT_AUTHENTICATION_METHODS"] = "CLAIMTOBE"
       
-      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+      build_feature(feature_name, params)
     end
 
 
     def build_execute_feature(feature_name, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :startd => 1, :slots => 1, :dynamic => 0, 
+      kwdef = { :startd => 1, :slots => 1, :dynamic => 0, 
                 :dl_append => true, :dedicated => true, :preemption => false, :ad_machine => false }
       kwa = kwdef.merge(kwa)
 
-      if kwa[:verbosity] > 0 then 
-        puts "build_execute_feature: %s  startd= %d  slots= %d  dynamic= %d" % [ feature_name, kwa[:startd], kwa[:slots], kwa[:dynamic] ]
-      end
+      log.info("build_execute_feature: %s  startd= %d  slots= %d  dynamic= %d" % [ feature_name, kwa[:startd], kwa[:slots], kwa[:dynamic] ])
 
       params = {}
       params["USE_PROCD"] = "FALSE"
@@ -426,7 +480,7 @@ module Albatross
       
       params["DAEMON_LIST"] = daemon_list
 
-      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+      build_feature(feature_name, params)
 
       tslots = kwa[:startd] * kwa[:slots]
       return [ tslots, tslots * kwa[:dynamic] ]
@@ -434,12 +488,10 @@ module Albatross
 
 
     def build_scheduler_feature(feature_name, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :schedd => 1, :dl_append => true }
+      kwdef = { :schedd => 1, :dl_append => true }
       kwa = kwdef.merge(kwa)
 
-      if kwa[:verbosity] > 0 then
-        puts "build_scheduler_feature: %s  schedd= %d" % [ feature_name, kwa[:schedd] ]
-      end
+      log.info("build_scheduler_feature: %s  schedd= %d" % [ feature_name, kwa[:schedd] ])
 
       schedd_names = []
       params = {}
@@ -471,19 +523,17 @@ module Albatross
 
       params["DAEMON_LIST"] = daemon_list
 
-      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+      build_feature(feature_name, params)
 
       return schedd_names
     end
 
 
     def build_collector_feature(feature_name, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :collector => 1, :portstart => 10000, :dl_append => true, :disable_plugins => true }
+      kwdef = { :collector => 1, :portstart => 10000, :dl_append => true, :disable_plugins => true }
       kwa = kwdef.merge(kwa)
 
-      if kwa[:verbosity] > 0 then
-        puts "build_collector_feature: %s  collector= %d" % [ feature_name, kwa[:collector] ]
-      end
+      log.info("build_collector_feature: %s  collector= %d" % [ feature_name, kwa[:collector] ])
 
       collector_names = []
       params = {}
@@ -516,19 +566,17 @@ module Albatross
 
       params["DAEMON_LIST"] = daemon_list
 
-      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+      build_feature(feature_name, params)
 
       return collector_names      
     end
 
 
     def build_accounting_group_feature(feature_name, group_tuples, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :accept_surplus => false }
+      kwdef = { :accept_surplus => false }
       kwa = kwdef.merge(kwa)
       
-      if kwa[:verbosity] > 0 then
-        puts "build_accounting_group_feature: %s" % [ feature_name ]
-      end
+      log.info("build_accounting_group_feature: %s" % [ feature_name ])
 
       params = {}
       params["GROUP_NAMES"] = group_tuples.map {|t| t[0]}.join(",")
@@ -549,12 +597,12 @@ module Albatross
         end
       end
 
-      build_feature(feature_name, params, :verbosity => kwa[:verbosity])
+      build_feature(feature_name, params)
     end
 
 
     def select_nodes(nodes, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :with_feats => nil, :without_feats => nil, :with_groups => nil, :without_groups => nil, 
+      kwdef = { :with_feats => nil, :without_feats => nil, :with_groups => nil, :without_groups => nil, 
         :checkin_since => (Time.now.to_f - (3600 + 5*60)), 
         :white => try_params(:white), :black => try_params(:black) }
       kwa = kwdef.merge(kwa)
@@ -570,7 +618,7 @@ module Albatross
       r = []
       s.map {|x| store.getNode(x)}.each do |node|
         checkin = node.last_checkin.to_f / 1000000.0
-        puts "node name= %s  checkin= %16.6f" % [node.name, checkin] if kwa[:verbosity] > 0
+        log.debug("node name= %s  checkin= %16.6f" % [node.name, checkin])
 
         # if node hasn't checked in since given time threshold, ignore it
         next if (checkin) < kwa[:checkin_since]
@@ -597,6 +645,12 @@ module Albatross
       return r
     end
 
+    def self.included(base)
+      # this opens up singleton-class of who we're being mixed into:
+      class << base
+        include ::Albatross::ParamUtils::ClassMethods
+      end
+    end
   end # module WallabyTools
 
 
@@ -609,7 +663,7 @@ module Albatross
 
     # nodes reporting to condor pool
     def condor_nodes(kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :with_groups => nil, :constraints => nil }
+      kwdef = { :with_groups => nil, :constraints => nil }
       kwa = kwdef.merge(kwa)
 
       to_array(kwa, :with_groups)
@@ -630,9 +684,7 @@ module Albatross
 
       cmd += " 2>/dev/null"
 
-      if kwa[:verbosity] > 0 then
-        puts "condor_nodes: cmd= %s" % [cmd]
-      end
+      log.debug("condor_nodes: cmd= \"%s\"" % [cmd])
 
       nodes = []
       IO.popen(cmd) do |input|
@@ -644,22 +696,22 @@ module Albatross
 
 
     def poll_for_slots(nslots, kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :group => nil, :interval => 30, :maxtime => 300, :required => nil, :expected => nil }
+      kwdef = { :group => nil, :interval => 30, :maxtime => 300, :required => nil, :expected => nil }
       kwa = kwdef.merge(kwa)
 
       cmd = "condor_status -subsystem startd -format \"%s\\n\" Name"
       cmd += "-constraint 'stringListMember(\"%s\", WallabyGroups)'" % [kwa[:group]]  if kwa[:group]
       cmd += " | wc -l"
 
+      log.debug("poll_for_slots: cmd= \"%s\"" % [cmd])
+
       t0 = Time.now.to_i
       cnodes = nil
       while true
-        if kwa[:verbosity] > 0 then
-          msg = "Waiting %d seconds for %d slots " % [kwa[:interval], nslots]
-          msg += "from group %s " % [kwa[:group]] if kwa[:group]
-          msg += "to spool up:"
-          puts msg
-        end
+        msg = "Waiting %d seconds for %d slots " % [kwa[:interval], nslots]
+        msg += "from group %s " % [kwa[:group]] if kwa[:group]
+        msg += "to spool up:"
+        log.info(msg)
 
         sleep(kwa[:interval])
 
@@ -671,13 +723,13 @@ module Albatross
         end
 
         elapsed = Time.now - t0
-        puts "elapsed= %d sec  slots= %d/%d:\n" % [elapsed.to_i, n, nslots] if kwa[:verbosity] > 0
+        log.info("elapsed= %d sec  slots= %d/%d:\n" % [elapsed.to_i, n, nslots])
         break if n >= nslots
 
-        if kwa[:expected] and (kwa[:verbosity] > 0) then
+        if kwa[:expected] then
           cnodes = condor_nodes(:with_groups => kwa[:group]) unless cnodes
           missing = kwa[:expected] - cnodes
-          puts "missing nodes: %s" % [array_to_s(missing)]
+          log.info("missing nodes: %s" % [array_to_s(missing)])
         end
         if kwa[:elapsed] > kwa[:maxtime] then
           break if kwa[:required] and (n >= kwa[:required])
@@ -687,7 +739,7 @@ module Albatross
     end
 
     def remove_jobs(kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [] }
+      kwdef = { :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [] }
       kwa = kwdef.merge(kwa)
 
       if kwa[:cluster] then
@@ -699,17 +751,19 @@ module Albatross
       end
 
       if kwa[:schedd].length <= 0 then
+        log.debug("remove_jobs: cmd= \"%s\"" % [cmd])
         IO.popen(cmd)
       else
         kwa[:schedd].each do |name|
           scmd = cmd + (" -name '%s'" % [name])
+          log.debug("remove_jobs: cmd= \"%s\"" % [scmd])
           IO.popen(scmd)
         end
       end
     end
 
     def job_count(kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [], :raise_on_err => false }
+      kwdef = { :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [], :raise_on_err => false }
       kwa = kwdef.merge(kwa)
       
       if kwa[:cluster] then
@@ -732,9 +786,10 @@ module Albatross
       cmd_list.each do |cmd|
         t = 0
         begin
+          log.debug("cmd= \"%s\"" % [cmd])
           IO.popen(cmd) { |input| t = Integer(input.readline.strip) }
         rescue
-          puts "job_count: exception on command:\n%s" % [cmd] if kwa[:verbosity] > 0
+          log.error("job_count: exception on command:\n%s" % [cmd])
           raise if kwa[:raise_on_err]
           t = 0
         end
@@ -745,7 +800,7 @@ module Albatross
     end
 
     def poll_for_empty_job_queue(kwa={})
-      kwdef = { :verbosity => try_params(:verbosity, 0), :interval => 30, :maxtime => 300, :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => []}
+      kwdef = { :interval => 30, :maxtime => 300, :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => []}
       kwa = kwdef.merge(kwa)
 
       begin
@@ -758,15 +813,14 @@ module Albatross
       tL = t0
       nL = n0
       while true
-        if kwa[:verbosity] > 0 then
-          msg = "Waiting %s seconds for job que to clear " % [kwa[:interval]]
-          if kwa[:cluster] then
-            msg += "for cluster %d" % [kwa[:cluster]]
-          elsif kwa[:tag] then
-            msg += "for %s==\"%s\"" % [kwa[:tagvar], kwa[:tag]]
-          end
-          puts msg
+        msg = "Waiting %s seconds for job que to clear " % [kwa[:interval]]
+        if kwa[:cluster] then
+          msg += "for cluster %d" % [kwa[:cluster]]
+        elsif kwa[:tag] then
+          msg += "for %s==\"%s\"" % [kwa[:tagvar], kwa[:tag]]
         end
+        log.info(msg)
+
         sleep(kwa[:interval])
 
         begin
@@ -780,7 +834,7 @@ module Albatross
         elapsedI = tC - tL
         rate = Float(n0-n)/Float(elapsed)
         rateI = float(nL-n)/float(elapsedI)
-        puts "elapsed= %d sec   interval= %d sec   jobs= %d   rate= %f  cum-rate= %f:\n" % [Integer(elapsed), Integer(elapsedI), n, rateI, rate] if kwa[:verbosity] > 0
+        log.info("elapsed= %d sec   interval= %d sec   jobs= %d   rate= %f  cum-rate= %f:\n" % [Integer(elapsed), Integer(elapsedI), n, rateI, rate])
         break if n <= 0
         raise(::Albatross::CondorTools::Exception, "Exceeded max polling time %d" % [kwa[:maxtime]]) if elapsed > kwa[:maxtime]
         nL = n
