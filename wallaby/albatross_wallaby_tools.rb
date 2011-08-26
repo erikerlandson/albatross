@@ -302,13 +302,16 @@ module Albatross
       kwdef = {}
       kwa = kwdef.merge(kwa)
 
+      nodes = [nodes] unless nodes.class <= Array
+
+      log.info("clear_nodes: clearing %s" % [array_to_s(nodes)])
       nodes.each do |node|
         node = store.getNode(node) if node.class <= String
-        log.info("clear_nodes: clearing node %s configuration" % [node.name])
+        log.debug("clear_nodes: clearing node %s configuration" % [node.name])
 
-        node.modifyMemberships('replace', [])
-        node.identity_group.modifyFeatures('replace', [])
-        node.identity_group.modifyParams('replace', {})
+        node.modifyMemberships('replace', [], {})
+        node.identity_group.modifyFeatures('replace', [], {})
+        node.identity_group.modifyParams('replace', {}, {})
       end
     end
 
@@ -360,9 +363,9 @@ module Albatross
       group_names.each do |group|
         group = store.getGroupByName(group)
         if kwa[:op] == 'insert' then
-          group.modifyFeatures('replace', feature_names + group.features)
+          group.modifyFeatures('replace', feature_names + group.features, {})
         else
-          group.modifyFeatures(kwa[:op], feature_names)
+          group.modifyFeatures(kwa[:op], feature_names, {})
         end
       end
     end
@@ -373,6 +376,7 @@ module Albatross
       kwa = kwdef.merge(kwa)
 
       node_names = [ node_names ] unless node_names.class <= Array
+      feature_names = [ feature_names ] unless feature_names.class <= Array
 
       missing = store.checkNodeValidity(node_names)
       raise(::Albatross::WallabyTools::Exception, "missing nodes: %s" % [array_to_s(missing)]) if not missing.empty?
@@ -400,9 +404,9 @@ module Albatross
       node_names.each do |node|
         node = store.getNode(node)
         if kwa[:op] == 'insert' then
-          node.modifyMemberships('replace', group_names + node.memberships)
+          node.modifyMemberships('replace', group_names + node.memberships, {})
         else
-          node.modifyMemberships(kwa[:op], group_names)
+          node.modifyMemberships(kwa[:op], group_names, {})
         end
       end
     end
