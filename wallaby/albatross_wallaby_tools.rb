@@ -221,13 +221,21 @@ module Albatross
     def __dummy_test__
     end
 
+    PASSTHROUGH_EXCEPTIONS = [NoMemoryError, SignalException, Interrupt, SystemExit]
+
     # Override the standard Test::Unit::TestCase run method, to do two things:
     # a) provide suite_setup/suite_teardown
     # b) allow a class to be instantiated as a single object that runs all its
     # test methods, allowing tests to access shared state (like fixtures).
     def run(result, &progress_block)
-      # first do suite setup prior to all tests in this object
-      suite_setup
+      begin
+        # first do suite setup prior to all tests in this object
+        suite_setup
+      rescue Exception => e
+        log.error("caught exception in suite_setup: %s" % [e.to_s])
+        raise if PASSTHROUGH_EXCEPTIONS.include?(e.class)
+        return
+      end
 
       # get the tests defined on this object
       method_names = self.class.public_instance_methods(true)
@@ -241,8 +249,14 @@ module Albatross
         super(result, &progress_block)
       end
 
-      # do suite teardown after all tests in this object have been run
-      suite_teardown
+      begin
+        # do suite teardown after all tests in this object have been run
+        suite_teardown
+      rescue Exception => e
+        log.error("caught exception in suite_teardown: %s" % [e.to_s])
+        raise if PASSTHROUGH_EXCEPTIONS.include?(e.class)
+        return
+      end
     end
 
     def self.included(base)

@@ -85,13 +85,7 @@ module Mrg
 
             def suite_setup
               super # call super first, before test-specific setup
-            end
 
-            def suite_teardown
-              super # call super last, after test-specific teardown
-            end
-
-            def test_submit
               nodes = condor_nodes()
               log.info("pool nodes= %s" % [array_to_s(nodes)])
 
@@ -102,6 +96,13 @@ module Mrg
               target_nodes = candidate_nodes.first(params[:ntarget])
 
               log.info("target nodes= %s" % [array_to_s(target_nodes)])
+            end
+
+            def suite_teardown
+              super # call super last, after test-specific teardown
+            end
+
+            def test_submit
             end
           end
         
