@@ -35,41 +35,39 @@ module Mrg
           end
         
           def init_option_parser
-            # Edit this method to generate a method that parses your command-line options.
-            @feature_name = ''
-            @verbosity = 0
-            @nschedd = 1
-            @dl_append = true
+            @params = {}
 
-            OptionParser.new do |opts|
-              opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
+            optp = OptionParser.new do |opts|
+              opts.banner = "Usage:  wallaby #{self.class.opname} feature_name [options]\\n#{self.class.description}"
         
               opts.on("-h", "--help", "displays this message") do
                 puts @oparser
                 exit
               end
 
-              opts.on("-f", "--feature NAME", "feature name") do |name|
-                @feature_name = name
+              @params[:schedd] = 1
+              opts.on("--nschedd N", Integer, "number of schedds: def= %s" % [@params[:schedd]]) do |n|
+                @params[:schedd] = n
               end
 
-              opts.on("--nschedd N", Integer, "number of schedds: def= %s" % [@nschedd]) do |n|
-                @nschedd = n
-              end
-
-              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@dl_append]) do |v|
-                @dl_append = v
-              end
-
-              opts.on("-v", "--verbose", "verbose output") do
-                @verbosity = 1
+              @params[:dl_append] = true
+              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@params[:dl_append]]) do |v|
+                @params[:dl_append] = v
               end
             end
+
+            ::Albatross::LogUtils.options(optp, @params)
           end
         
+          def positional_args(*args)
+            (puts @oparser; exit) if (args).length < 1
+            @params[:feature_name] = args[0]
+          end
+          register_callback(:after_option_parsing, :positional_args)
+          
           def act
-            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
-            build_scheduler_feature(@feature_name, :verbosity => @verbosity, :schedd => @nschedd, :dl_append => @dl_append)
+            self.class.params=(@params)
+            build_scheduler_feature(@params[:feature_name], @params)
             return 0
           end
         end

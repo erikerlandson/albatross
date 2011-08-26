@@ -36,42 +36,41 @@ module Mrg
         
           def init_option_parser
             # Edit this method to generate a method that parses your command-line options.
-            @feature_name = ''
-            @verbosity = 0
-            @group_tuples = []
-            @accept_surplus = false
+            @params = {}
 
-            OptionParser.new do |opts|
-              opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
+            optp = OptionParser.new do |opts|
+              opts.banner = "Usage:  wallaby #{self.class.opname} feature_name [options]\n#{self.class.description}"
         
               opts.on("-h", "--help", "displays this message") do
                 puts @oparser
                 exit
               end
 
-              opts.on("-f", "--feature NAME", "feature name") do |name|
-                @feature_name = name
-              end
-
+              @params[:group_tuples] = []
               opts.on("-g", "--group NAME,QUOTA[,ACCEPT_SURPLUS[,IS_STATIC]]", Array, "group tuple: may appear > once") do |t|
                 accept_surplus = if t.length >= 3 then if t[2]=="true" then true else false end else nil end
                 is_static = if t.length >= 4 then if t[3]=="true" then true else false end else nil end
-                @group_tuples += [ [ t[0], t[1].to_f, accept_surplus, is_static ] ]
+                @params[:group_tuples] += [ [ t[0], t[1].to_f, accept_surplus, is_static ] ]
               end
 
-              opts.on("--[no-]accept-surplus", "set default accept surplus: def= %s" % [@accept_surplus]) do |v|
-                @accept_surplus = v
+              @params[:accept_surplus] = false
+              opts.on("--[no-]accept-surplus", "set default accept surplus: def= %s" % [@params[:accept_surplus]]) do |v|
+                @params[:accept_surplus] = v
               end
-
-              opts.on("-v", "--verbose", "verbose output") do
-                @verbosity = 1
-              end              
             end
+
+            ::Albatross::LogUtils.options(optp, @params)
           end
         
-          def act
-            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
-            build_accounting_group_feature(@feature_name, @group_tuples, :verbosity => @verbosity, :accept_surplus => @accept_surplus)
+          def positional_args(*args)
+            (puts @oparser; exit) if (args).length < 1
+            @params[:feature_name] = args[0]
+          end
+          register_callback(:after_option_parsing, :positional_args)
+          
+         def act
+            self.class.params=(@params)
+            build_accounting_group_feature(@params[:feature_name], @params[:group_tuples], @params)
             return 0
           end
         end

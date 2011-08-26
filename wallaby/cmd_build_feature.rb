@@ -39,16 +39,11 @@ module Mrg
             @params = {}
 
             optp = OptionParser.new do |opts|
-              opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
+              opts.banner = "Usage:  wallaby #{self.class.opname} feature_name [options]\n#{self.class.description}"
         
               opts.on("-h", "--help", "displays this message") do
                 puts @oparser
                 exit
-              end
-
-              @params[:feature_name] = ''
-              opts.on("-f", "--feature NAME", "feature name") do |name|
-                @params[:feature_name] = name
               end
 
               @params[:params] = {}
@@ -66,9 +61,14 @@ module Mrg
             ::Albatross::LogUtils.options(optp, @params)
           end
         
+          def positional_args(*args)
+            (puts @oparser; exit) if (args).length < 1
+            @params[:feature_name] = args[0]
+          end
+          register_callback(:after_option_parsing, :positional_args)
+          
           def act
             self.class.params=(@params)
-            if @params[:feature_name] == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
             build_feature(@params[:feature_name], @params[:params], :op => @params[:operation])
             return 0
           end

@@ -35,52 +35,49 @@ module Mrg
           end
         
           def init_option_parser
-            # Edit this method to generate a method that parses your command-line options.
-            @feature_name = ''
-            @verbosity = 0
-            @ncollector = 1
-            @portstart = 10000
-            @dl_append = true
-            @disable_plugins = true
+            @params = {}
 
-            OptionParser.new do |opts|
-              opts.banner = "Usage:  wallaby #{self.class.opname}\n#{self.class.description}"
+            optp = OptionParser.new do |opts|
+              opts.banner = "Usage:  wallaby #{self.class.opname} feature_name [options]\\n#{self.class.description}"
         
               opts.on("-h", "--help", "displays this message") do
                 puts @oparser
                 exit
               end
 
-              opts.on("-f", "--feature NAME", "feature name") do |name|
-                @feature_name = name
+              @params[:collector] = 1
+              opts.on("--ncollector N", Integer, "number of collectors: def= %s" % [@params[:collector]]) do |n|
+                @params[:collector] = n
               end
 
-              opts.on("--ncollector N", Integer, "number of collectors: def= %s" % [@ncollector]) do |n|
-                @ncollector = n
+              @params[:portstart] = 10000
+              opts.on("--port-start N", Integer, "collector port start value: def= %s" % [@params[:portstart]]) do |n|
+                @params[:portstart] = n
               end
 
-              opts.on("--port-start N", Integer, "collector port start value: def= %s" % [@portstart]) do |n|
-                @portstart = n
+              @params[:dl_append] = true
+              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@params[:dl_append]]) do |v|
+                @params[:dl_append] = v
               end
 
-              opts.on("--[no-]dl-append", "append to daemon list: def= %s" % [@dl_append]) do |v|
-                @dl_append = v
-              end
-
-              opts.on("--[no-]disable-plugins", "disable collector plugins: def= %s" % [@disable_plugins]) do |v|
-                @disable_plugins = v
-              end
-
-              opts.on("-v", "--verbose", "verbose output") do
-                @verbosity = 1
+              @params[:disable_plugins] = true
+              opts.on("--[no-]disable-plugins", "disable collector plugins: def= %s" % [@params[:disable_plugins]]) do |v|
+                @params[:disable_plugins] = v
               end
             end
+
+            ::Albatross::LogUtils.options(optp, @params)
           end
         
+          def positional_args(*args)
+            (puts @oparser; exit) if (args).length < 1
+            @params[:feature_name] = args[0]
+          end
+          register_callback(:after_option_parsing, :positional_args)
+          
           def act
-            if @feature_name == "" then exit!(1, "wallaby #{self.class.opname}: missing --feature NAME") end
-            build_collector_feature(@feature_name, :verbosity => @verbosity, :collector => @ncollector, :portstart => @portstart, 
-                                    :dl_append => @dl_append, :disable_plugins => @disable_plugins)
+            self.class.params=(@params)
+            build_collector_feature(@params[:feature_name], @params)
             return 0
           end
         end
