@@ -91,11 +91,14 @@ module Mrg
 
               candidate_nodes = select_nodes(nodes)
               log.info("candidate nodes= %s" % [array_to_s(candidate_nodes)])
-              
               raise(Exception, "required %d target nodes, found only %d" % [params[:ntarget], candidate_nodes.length]) if candidate_nodes.length < params[:ntarget]
-              target_nodes = candidate_nodes.first(params[:ntarget])
 
+              target_nodes = candidate_nodes.first(params[:ntarget])
               log.info("target nodes= %s" % [array_to_s(target_nodes)])
+
+              declare_features('GridScaleTest')
+              build_access_feature('GridScaleTestAccess')
+              
             end
 
             def suite_teardown

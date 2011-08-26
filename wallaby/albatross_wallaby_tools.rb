@@ -199,18 +199,22 @@ module Albatross
 
     # default suite setup/teardown
     def suite_setup
+      @pretest_snapshot_taken = false
       log.debug("WallabyUnitTestTools.suite_setup")
       @fq_hostname = Socket.gethostbyname(Socket.gethostname).first
       @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
       @pretest_snapshot = "albatross_wallaby_utt_%s_pretest" % (@test_date)
       ENV['PATH'] = ENV['PATH'] + ":" + ENV['WALLABY_COMMAND_DIR'] + "/../submodules/condor_tools/bin"
       log.debug("Set PATH= %s" % [ENV['PATH']])
-      take_snapshot(@pretest_snapshot) if try_params(:pretest, true)
+      if try_params(:pretest, true) then
+        take_snapshot(@pretest_snapshot)
+        @pretest_snapshot_taken = true
+      end
     end
 
     def suite_teardown
       log.debug("WallabyUnitTestTools.suite_teardown")
-      if try_params(:restore, true) and try_params(:pretest, true) then
+      if try_params(:restore, true) and try_params(:pretest, true) and @pretest_snapshot_taken then
         load_snapshot(@pretest_snapshot)
         store.activateConfiguration(_timeout=60)
       end
@@ -228,25 +232,28 @@ module Albatross
     # b) allow a class to be instantiated as a single object that runs all its
     # test methods, allowing tests to access shared state (like fixtures).
     def run(result, &progress_block)
+      do_tests = true
       begin
         # first do suite setup prior to all tests in this object
         suite_setup
       rescue Exception => e
         log.error("caught exception in suite_setup: %s" % [e.to_s])
         raise if PASSTHROUGH_EXCEPTIONS.include?(e.class)
-        return
+        do_tests = false
       end
 
-      # get the tests defined on this object
-      method_names = self.class.public_instance_methods(true)
-      tests = method_names.delete_if {|method_name| method_name !~ /^test./}
+      if do_tests then
+        # get the tests defined on this object
+        method_names = self.class.public_instance_methods(true)
+        tests = method_names.delete_if {|method_name| method_name !~ /^test./}
 
-      # Now run each of those tests, using Test::Unit's test running logic.   Basically
-      # this spoof's the TestCase internal convention of a single object per test, by 
-      # repeatedly setting @method_name
-      tests.sort.each do |t|
-        @method_name = t
-        super(result, &progress_block)
+        # Now run each of those tests, using Test::Unit's test running logic.   Basically
+        # this spoof's the TestCase internal convention of a single object per test, by 
+        # repeatedly setting @method_name
+        tests.sort.each do |t|
+          @method_name = t
+          super(result, &progress_block)
+        end
       end
 
       begin
@@ -330,7 +337,7 @@ module Albatross
 
       log.info("declare_features: declaring new features %s" % [array_to_s(feature_names)])
 
-      group_names.each do |name|
+      feature_names.each do |name|
         store.addFeature(name)
       end
     end
