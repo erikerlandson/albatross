@@ -86,6 +86,8 @@ module Mrg
             def suite_setup
               super # call super first, before test-specific setup
 
+              raise(Exception, "Requested insufficient target nodes for %d schedulers" % [params[:nschedd]]) if params[:nschedd] > params[:ntarget]
+
               nodes = condor_nodes()
               log.info("pool nodes= %s" % [array_to_s(nodes)])
 
@@ -99,6 +101,21 @@ module Mrg
               declare_features('GridScaleTest')
               build_access_feature('GridScaleTestAccess')
               
+              pslots, dslots = build_execute_feature('GridScaleTestExecute', :startd => params[:nstartd], :slots => params[:nslots], :dynamic => params[:ndynamic], :dl_append => false)
+
+              build_feature('GridScaleTestUpdate', {"UPDATE_INTERVAL" => "60"})
+              build_feature('GridScaleTestPorts', {"LOWPORT" => "1024", "HIGHPORT" => "64000"})
+              
+              declare_groups('GridScaleTest')
+              set_group_features('GridScaleTest', ['GridScaleTestExecute', 'GridScaleTestPorts', 'GridScaleTestUpdate', 'GridScaleTestAccess', 'GridScaleTest', 'Master', 'NodeAccess'])
+              
+              # set up execute and other config on target nodes
+              clear_nodes(target_nodes)
+              set_node_groups(target_nodes, 'GridScaleTest')
+
+              # set up scheduler features as needed on target nodes
+              set_node_features(target_nodes.first(params[:nschedd]), 'Scheduler')
+              @schedd_names = target_nodes.first(params[:nschedd])
             end
 
             def suite_teardown
