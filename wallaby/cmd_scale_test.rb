@@ -48,6 +48,31 @@ module Mrg
                 puts @oparser
                 exit
               end
+
+              @params[:ntarget] = 1
+              opts.on("--ntarget N", Integer, "number of target machines") do |v|
+                @params[:ntarget] = v
+              end
+
+              @params[:nstartd] = 1
+              opts.on("--nstartd N", Integer, "number of startds per node") do |v|
+                @params[:nstartd] = v
+              end
+
+              @params[:nslots] = 1
+              opts.on("--nslots N", Integer, "number of slots per startd") do |v|
+                @params[:nslots] = v
+              end
+
+              @params[:ndynamic] = 0
+              opts.on("--ndynamic N", Integer, "number of dynamic slots per slot") do |v|
+                @params[:ndynamic] = v
+              end
+
+              @params[:nschedd] = 1
+              opts.on("--nschedd N", Integer, "number of schedulers") do |v|
+                @params[:nschedd] = v
+              end
             end
 
             ::Albatross::WallabyUnitTestTools.options(optp, @params)
@@ -68,12 +93,15 @@ module Mrg
 
             def test_submit
               nodes = condor_nodes()
-              log.info("nodes= %s" % [nodes.join(" ")])
+              log.info("pool nodes= %s" % [array_to_s(nodes)])
 
-              nodes = select_nodes(nodes, :checkin_since => 0)
-              log.info("nodes= %s" % [nodes.join(" ")])
+              candidate_nodes = select_nodes(nodes)
+              log.info("candidate nodes= %s" % [array_to_s(candidate_nodes)])
               
+              raise(Exception, "required %d target nodes, found only %d" % [params[:ntarget], candidate_nodes.length]) if candidate_nodes.length < params[:ntarget]
+              target_nodes = candidate_nodes.first(params[:ntarget])
 
+              log.info("target nodes= %s" % [array_to_s(target_nodes)])
             end
           end
         

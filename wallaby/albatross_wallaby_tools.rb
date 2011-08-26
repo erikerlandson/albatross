@@ -54,7 +54,7 @@ module Albatross
     include ::Albatross::ParamUtils
 
     def log
-      if not instance_variable_defined?('@log') then
+      if not instance_variables.include?('@log') then
         @log = Logger.new(try_params(:log_device, STDOUT))
         @log.level = try_params(:log_level, Logger::INFO)
       end
@@ -163,6 +163,11 @@ module Albatross
         pmap[:restore] = v
       end
 
+      pmap[:pretest] = true
+      opts.on("--[no-]pretest", "take pre-test snapshot: def= %s" % [pmap[:pretest]]) do |v|
+        pmap[:pretest] = v
+      end
+
       pmap[:condor_host] = Socket.gethostbyname(Socket.gethostname).first
       opts.on("--condor-host HOSTNAME", "condor pool host: def= %s" % [pmap[:condor_host]]) do |v|
         pmap[:condor_host] = v
@@ -198,7 +203,9 @@ module Albatross
       @fq_hostname = Socket.gethostbyname(Socket.gethostname).first
       @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
       @pretest_snapshot = "albatross_wallaby_utt_%s_pretest" % (@test_date)
-      take_snapshot(@pretest_snapshot)
+      ENV['PATH'] = ENV['PATH'] + ":" + ENV['WALLABY_COMMAND_DIR'] + "/../submodules/condor_tools/bin"
+      log.debug("Set PATH= %s" % [ENV['PATH']])
+      take_snapshot(@pretest_snapshot) if try_params(:pretest, true)
     end
 
     def suite_teardown
@@ -612,13 +619,16 @@ module Albatross
       to_array(kwa, :with_groups)
       to_array(kwa, :without_groups)
 
+      log.debug("select_nodes: white= %s" % [kwa[:white]])
+      log.debug("select_nodes: black= %s" % [kwa[:black]])
+
       # subtract the set of nodes that aren't known to the wallaby store:
       s = nodes - store.checkNodeValidity(nodes) 
 
       r = []
       s.map {|x| store.getNode(x)}.each do |node|
         checkin = node.last_checkin.to_f / 1000000.0
-        log.debug("node name= %s  checkin= %16.6f" % [node.name, checkin])
+        log.debug("select_nodes: node name= %s  checkin= %16.6f" % [node.name, checkin])
 
         # if node hasn't checked in since given time threshold, ignore it
         next if (checkin) < kwa[:checkin_since]
