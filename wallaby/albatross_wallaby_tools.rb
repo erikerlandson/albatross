@@ -735,7 +735,7 @@ module Albatross
       kwa = kwdef.merge(kwa)
 
       cmd = "condor_status -subsystem startd -format \"%s\\n\" Name"
-      cmd += "-constraint 'stringListMember(\"%s\", WallabyGroups)'" % [kwa[:group]]  if kwa[:group]
+      cmd += " -constraint 'stringListMember(\"%s\", WallabyGroups)'" % [kwa[:group]]  if kwa[:group]
       cmd += " | wc -l"
 
       log.debug("poll_for_slots: cmd= \"%s\"" % [cmd])
@@ -757,7 +757,7 @@ module Albatross
           n = 0
         end
 
-        elapsed = Time.now - t0
+        elapsed = Time.now.to_i - t0
         log.info("elapsed= %d sec  slots= %d/%d:\n" % [elapsed.to_i, n, nslots])
         break if n >= nslots
 
@@ -766,7 +766,7 @@ module Albatross
           missing = kwa[:expected] - cnodes
           log.info("missing nodes: %s" % [array_to_s(missing)])
         end
-        if kwa[:elapsed] > kwa[:maxtime] then
+        if elapsed > kwa[:maxtime] then
           break if kwa[:required] and (n >= kwa[:required])
           raise(::Albatross::CondorTools::Exception, "Exceeded maximum polling time %d" % [kwa[:maxtime]])
         end
