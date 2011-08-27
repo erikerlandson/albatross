@@ -95,13 +95,13 @@ module Mrg
               log.info("candidate nodes= %s" % [array_to_s(candidate_nodes)])
               raise(Exception, "required %d target nodes, found only %d" % [params[:ntarget], candidate_nodes.length]) if candidate_nodes.length < params[:ntarget]
 
-              target_nodes = candidate_nodes.first(params[:ntarget])
-              log.info("target nodes= %s" % [array_to_s(target_nodes)])
+              @target_nodes = candidate_nodes.first(params[:ntarget])
+              log.info("target nodes= %s" % [array_to_s(@target_nodes)])
 
               declare_features('GridScaleTest')
               build_access_feature('GridScaleTestAccess')
               
-              pslots, dslots = build_execute_feature('GridScaleTestExecute', :startd => params[:nstartd], :slots => params[:nslots], :dynamic => params[:ndynamic], :dl_append => false)
+              @pslots, @dslots = build_execute_feature('GridScaleTestExecute', :startd => params[:nstartd], :slots => params[:nslots], :dynamic => params[:ndynamic], :dl_append => false)
 
               build_feature('GridScaleTestUpdate', {"UPDATE_INTERVAL" => "60"})
               build_feature('GridScaleTestPorts', {"LOWPORT" => "1024", "HIGHPORT" => "64000"})
@@ -110,12 +110,30 @@ module Mrg
               set_group_features('GridScaleTest', ['GridScaleTestExecute', 'GridScaleTestPorts', 'GridScaleTestUpdate', 'GridScaleTestAccess', 'GridScaleTest', 'Master', 'NodeAccess'])
               
               # set up execute and other config on target nodes
-              clear_nodes(target_nodes)
-              set_node_groups(target_nodes, 'GridScaleTest')
+              clear_nodes(@target_nodes)
+              set_node_groups(@target_nodes, 'GridScaleTest')
+
+              # get history files
+              build_feature('GridScaleTestFetch', {"ALLOW_ADMINISTRATOR" => (">= %s"%[@fq_hostname]), "MAX_HISTORY_LOG" => "1000000000"})
 
               # set up scheduler features as needed on target nodes
-              set_node_features(target_nodes.first(params[:nschedd]), 'Scheduler')
-              @schedd_names = target_nodes.first(params[:nschedd])
+              set_node_features(@target_nodes.first(params[:nschedd]), ['GridScaleTestFetch', 'Scheduler'])
+              @schedd_names = @target_nodes.first(params[:nschedd])
+              
+              # turn off plugins
+              build_feature('GridScaleTestNoPlugins', {"MASTER.PLUGINS" => "", "SCHEDD.PLUGINS" => "", "COLLECTOR.PLUGINS" => "", "NEGOTIATOR.PLUGINS" => "", "STARTD.PLUGINS" => ""})
+              # turn off preemption
+              build_feature('GridScaleTestNoPreempt', {"NEGOTIATOR_CONSIDER_PREEMPTION" => "FALSE", "PREEMPTION_REQUIREMENTS" => "FALSE", "RANK" => "0", "SHADOW_TIMEOUT_MULTIPLIER" => "4", "SHADOW_WORKLIFE" => "36000"})
+
+              # miscellaneous settings
+              build_feature('GridScaleTestNeg', {"NEGOTIATOR_INTERVAL" => "30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER" => "31536000", "NEGOTIATOR_DEBUG" => "", "MAX_NEGOTIATOR_LOG" => "100000000", "SCHEDD_DEBUG" => "", "MAX_SCHEDD_LOG" => "100000000", "COLLECTOR_DEBUG" => "", "SHADOW_LOCK" => "", "SHADOW_LOG" => "", "NEGOTIATOR_PRE_JOB_RANK" => "0", "NEGOTIATOR_POST_JOB_RANK" => "0"})
+
+              set_node_features(params[:condor_host], ['GridScaleTestNeg', 'GridScaleTestNoPreempt', 'GridScaleTestPorts'], :op => 'insert')
+
+              take_snapshot("grid_scale_test_%s" % [@test_date])
+              store.activateConfiguration(_timeout=60)
+              
+              poll_for_slots(params[:ntarget]*@pslots, :group => 'GridScaleTest', :interval => 30, :maxtime => 300, :expected => @target_nodes)
             end
 
             def suite_teardown
