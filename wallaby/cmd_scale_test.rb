@@ -73,6 +73,23 @@ module Mrg
               opts.on("--nschedd N", Integer, "number of schedulers") do |v|
                 @params[:nschedd] = v
               end
+
+              @params[:nsub] = 1
+              opts.on("--nsub N", Integer, "number of submitters: def= %d" % [@params[:nsub]]) do |v|
+                @params[:nsub] = v
+              end
+
+              @params[:duration] = 30
+              opts.on("--duration N", Integer, "job duration (sec): def= %d" % [@params[:duration]]) do |v|
+                @params[:duration] = v
+              end
+
+              opts.separator("completion rate testing")
+
+              @params[:njobs] = 1
+              opts.on("--njobs N", Integer, "number of jobs for completion-rate: def= %d" % [@params[:njobs]]) do |v|
+                @params[:njobs] = v
+              end
             end
 
             ::Albatross::WallabyUnitTestTools.options(optp, @params)
@@ -140,7 +157,18 @@ module Mrg
               super # call super last, after test-specific teardown
             end
 
-            def test_submit
+            def test_01_complete_rate
+              cjscmd = "cjs -dir '%s' -duration %d -n %d -sub %d -remote '%s' -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups)' -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' >'%s/sh_out' 2>'%s/sh_err'" % [@tmpdir, params[:duration], params[:njobs], params[:nsub], @schedd_names.first, @tmpdir, @tmpdir]
+              log.debug("cjscmd= %s" % [cjscmd])
+
+              IO.popen(cjscmd)
+
+              sleep(30)
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
+              
+            end
+
+            def test_02_submit_rate
             end
           end
         

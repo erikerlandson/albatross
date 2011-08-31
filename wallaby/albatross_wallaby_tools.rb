@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+require 'tmpdir'
+require 'tempfile'
 require 'logger'
 require 'socket'
 require 'test/unit'
@@ -202,6 +204,9 @@ module Albatross
       @pretest_snapshot_taken = false
       log.debug("WallabyUnitTestTools.suite_setup")
       @fq_hostname = Socket.gethostbyname(Socket.gethostname).first
+      @tmpdir = Dir.tmpdir + "/awth_" + (0...10).map{('a'..'z').to_a[rand(26)]}.join
+      Dir.mkdir(@tmpdir)
+      log.info("tmpdir= %s" % [@tmpdir])
       @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
       @pretest_snapshot = "albatross_wallaby_utt_%s_pretest" % (@test_date)
       ENV['PATH'] = ENV['PATH'] + ":" + ENV['WALLABY_COMMAND_DIR'] + "/../submodules/condor_tools/bin"
@@ -821,13 +826,14 @@ module Albatross
       cmd_list.each do |cmd|
         t = 0
         begin
-          log.debug("cmd= \"%s\"" % [cmd])
+          log.debug("job_count: cmd= \"%s\"" % [cmd])
           IO.popen(cmd) { |input| t = Integer(input.readline.strip) }
         rescue
           log.error("job_count: exception on command:\n%s" % [cmd])
           raise if kwa[:raise_on_err]
           t = 0
         end
+        log.debug("job_count: schedd jobs= %d" % [t])
         n += t
       end
 
@@ -843,6 +849,8 @@ module Albatross
       rescue
         n0 = 99999999
       end
+
+      log.debug("poll_for_empty_job_queue: initial job count= %d" % [n0])
 
       t0 = Time.now.to_i
       tL = t0
@@ -868,7 +876,7 @@ module Albatross
         elapsed = tC - t0
         elapsedI = tC - tL
         rate = Float(n0-n)/Float(elapsed)
-        rateI = float(nL-n)/float(elapsedI)
+        rateI = Float(nL-n)/Float(elapsedI)
         log.info("elapsed= %d sec   interval= %d sec   jobs= %d   rate= %f  cum-rate= %f:\n" % [Integer(elapsed), Integer(elapsedI), n, rateI, rate])
         break if n <= 0
         raise(::Albatross::CondorTools::Exception, "Exceeded max polling time %d" % [kwa[:maxtime]]) if elapsed > kwa[:maxtime]
