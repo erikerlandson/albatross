@@ -134,8 +134,9 @@ module Mrg
               build_feature('GridScaleTestFetch', {"ALLOW_ADMINISTRATOR" => (">= %s"%[@fq_hostname]), "MAX_HISTORY_LOG" => "1000000000"})
 
               # set up scheduler features as needed on target nodes
-              set_node_features(@target_nodes.first(params[:nschedd]), ['GridScaleTestFetch', 'Scheduler'])
+              # schedd names are same as node names they run on, by default
               @schedd_names = @target_nodes.first(params[:nschedd])
+              set_node_features(@schedd_names, ['GridScaleTestFetch', 'Scheduler'])
               
               # turn off plugins
               build_feature('GridScaleTestNoPlugins', {"MASTER.PLUGINS" => "", "SCHEDD.PLUGINS" => "", "COLLECTOR.PLUGINS" => "", "NEGOTIATOR.PLUGINS" => "", "STARTD.PLUGINS" => ""})
@@ -145,7 +146,7 @@ module Mrg
               # miscellaneous settings
               build_feature('GridScaleTestNeg', {"NEGOTIATOR_INTERVAL" => "30", "NEGOTIATOR_MAX_TIME_PER_SUBMITTER" => "31536000", "NEGOTIATOR_DEBUG" => "", "MAX_NEGOTIATOR_LOG" => "100000000", "SCHEDD_DEBUG" => "", "MAX_SCHEDD_LOG" => "100000000", "COLLECTOR_DEBUG" => "", "SHADOW_LOCK" => "", "SHADOW_LOG" => "", "NEGOTIATOR_PRE_JOB_RANK" => "0", "NEGOTIATOR_POST_JOB_RANK" => "0"})
 
-              set_node_features(params[:condor_host], ['GridScaleTestNeg', 'GridScaleTestNoPreempt', 'GridScaleTestPorts'], :op => 'insert')
+              set_node_features(params[:condor_host], ['GridScaleTestFetch', 'GridScaleTestNeg', 'GridScaleTestNoPreempt', 'GridScaleTestPorts'], :op => 'insert')
 
               take_snapshot("grid_scale_test_%s" % [@test_date])
               store.activateConfiguration(_timeout=60)
@@ -158,14 +159,58 @@ module Mrg
             end
 
             def test_01_complete_rate
-              cjscmd = "cjs -dir '%s' -duration %d -n %d -sub %d -remote '%s' -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups)' -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' >'%s/sh_out' 2>'%s/sh_err'" % [@tmpdir, params[:duration], params[:njobs], params[:nsub], @schedd_names.first, @tmpdir, @tmpdir]
+              schedd_names = [params[:condor_host]]
+              cjscmd = "cjs -shell -dir '%s' -duration %d -n %d -sub %d -remote '%s' -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' >'%s/sh_out' 2>'%s/sh_err'" % [@tmpdir, params[:duration], params[:njobs], params[:nsub], schedd_names.first, @tmpdir, @tmpdir]
               log.debug("cjscmd= %s" % [cjscmd])
 
-              IO.popen(cjscmd)
+              system(cjscmd)
 
-              sleep(30)
-              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
-              
+              log.info("pausing for jobs to queue up")
+              sleep(15)
+              poll_for_empty_job_queue(:schedd => schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
+
+              hflist = []
+              (0...schedd_names.length).each do |j|
+                schedd = schedd_names[j]
+                hfname = "%s/cr_history%03d" % [@tmpdir, j]
+                hflist.push(hfname)
+                cmd = "/usr/sbin/condor_fetchlog %s HISTORY > %s" % [schedd, hfname]
+                log.debug("history cmd= %s" % [cmd])
+                system(cmd)
+              end
+
+              hfname = "%s/cr_history" % [@tmpdir]
+              cmd = "cat %s > %s" % [hflist.join(" "), hfname]
+              log.debug("cat cmd= %s" % [cmd])
+              system(cmd)
+
+              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d >%s/completions.dat" % [hfname, @starttime, @tmpdir]
+              log.debug("ptplot cmd= %s" % [cmd])
+              system(cmd)
+              File.open("%s/completions.dat" % [@tmpdir]) do |input|
+                log.info("\ncompletions:\n%s\n" % [input.read])
+              end
+
+              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d -cum >%s/completions_cum.dat" % [hfname, @starttime, @tmpdir]
+              log.debug("ptplot cmd= %s" % [cmd])
+              system(cmd)
+              File.open("%s/completions_cum.dat" % [@tmpdir]) do |input|
+                log.info("\ncompletions cum:\n%s\n" % [input.read])
+              end
+
+              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d -rate >%s/completions_rate.dat" % [hfname, @starttime, @tmpdir]
+              log.debug("ptplot cmd= %s" % [cmd])
+              system(cmd)
+              File.open("%s/completions_rate.dat" % [@tmpdir]) do |input|
+                log.info("\ncompletions rate:\n%s\n" % [input.read])
+              end
+
+              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d -cum -rate >%s/completions_cum_rate.dat" % [hfname, @starttime, @tmpdir]
+              log.debug("ptplot cmd= %s" % [cmd])
+              system(cmd)
+              File.open("%s/completions_cum_rate.dat" % [@tmpdir]) do |input|
+                log.info("\ncompletions cum rate:\n%s\n" % [input.read])
+              end
             end
 
             def test_02_submit_rate

@@ -170,7 +170,11 @@ module Albatross
         pmap[:pretest] = v
       end
 
-      pmap[:condor_host] = Socket.gethostbyname(Socket.gethostname).first
+      begin
+        pmap[:condor_host] = `condor_config_val CONDOR_HOST`.strip
+      rescue
+        pmap[:condor_host] = Socket.gethostbyname(Socket.gethostname).first
+      end
       opts.on("--condor-host HOSTNAME", "condor pool host: def= %s" % [pmap[:condor_host]]) do |v|
         pmap[:condor_host] = v
       end
@@ -201,6 +205,8 @@ module Albatross
 
     # default suite setup/teardown
     def suite_setup
+      log.info("%s %s" % [$0, $*.join(" ")])
+      @starttime = Time.now.to_i
       @pretest_snapshot_taken = false
       log.debug("WallabyUnitTestTools.suite_setup")
       @fq_hostname = Socket.gethostbyname(Socket.gethostname).first

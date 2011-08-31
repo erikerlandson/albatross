@@ -197,7 +197,7 @@ class grid_scale_test_large(utcondor.condor_unit_test):
         proc.wait()
 
         # this waits for jobs to finish, and also measures completion rate
-        self.poll_for_empty_job_queue(tag = "Large", interval = 60, maxtime=3600)
+        self.poll_for_empty_job_queue(tag = "Large", interval = 60, maxtime=1800)
 
         hfname = "%s/cr_history" % (self.tmpdir)
         subprocess.call(["/bin/sh", "-c", "/usr/sbin/condor_fetchlog %s HISTORY > %s"%(self.params.broker_addr, hfname)])
