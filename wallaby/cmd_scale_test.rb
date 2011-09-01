@@ -131,7 +131,7 @@ module Mrg
               set_node_groups(@target_nodes, 'GridScaleTest')
 
               # get history files
-              build_feature('GridScaleTestFetch', {"ALLOW_ADMINISTRATOR" => (">= %s"%[@fq_hostname]), "MAX_HISTORY_LOG" => "1000000000"})
+              build_feature('GridScaleTestFetch', {"ALLOW_ADMINISTRATOR" => (">= %s"%[fq_hostname]), "MAX_HISTORY_LOG" => "1000000000"})
 
               # set up scheduler features as needed on target nodes
               # schedd names are same as node names they run on, by default

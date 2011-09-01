@@ -44,6 +44,11 @@ module Albatross
       return params[key]
     end
 
+    def try_var(v, dval = nil)
+      return dval if not instance_variables.include?(v)
+      self.instance_eval(v)
+    end
+
     def self.included(base)
       class << base
         include ClassMethods
@@ -114,6 +119,10 @@ module Albatross
     def array_to_s(a)
       "[" + a.join(", ") + "]"
     end
+
+    def fq_hostname
+      Socket.gethostbyname(Socket.gethostname).first
+    end
   end # module Utils
 
 
@@ -150,6 +159,11 @@ module Albatross
     def self.options(opts, pmap)
       opts.separator("\nalbatross unit testing options")
 
+      pmap[:test] = '.*'
+      opts.on("--test REGEXP", "run tests matching REGEXP: def= all") do |v|
+        pmap[:test] = v
+      end
+
       pmap[:white] = nil
       opts.on("--white REGEXP", "target node white-list regexp") do |v|
         pmap[:white] = v
@@ -173,7 +187,7 @@ module Albatross
       begin
         pmap[:condor_host] = `condor_config_val CONDOR_HOST`.strip
       rescue
-        pmap[:condor_host] = Socket.gethostbyname(Socket.gethostname).first
+        pmap[:condor_host] = fq_hostname
       end
       opts.on("--condor-host HOSTNAME", "condor pool host: def= %s" % [pmap[:condor_host]]) do |v|
         pmap[:condor_host] = v
@@ -209,7 +223,6 @@ module Albatross
       @starttime = Time.now.to_i
       @pretest_snapshot_taken = false
       log.debug("WallabyUnitTestTools.suite_setup")
-      @fq_hostname = Socket.gethostbyname(Socket.gethostname).first
       @tmpdir = Dir.tmpdir + "/awth_" + (0...10).map{('a'..'z').to_a[rand(26)]}.join
       Dir.mkdir(@tmpdir)
       log.info("tmpdir= %s" % [@tmpdir])
@@ -257,6 +270,9 @@ module Albatross
         # get the tests defined on this object
         method_names = self.class.public_instance_methods(true)
         tests = method_names.delete_if {|method_name| method_name !~ /^test./}
+
+        re = try_params(:test, ".*")
+        tests = tests.delete_if {|name| name !~ Regexp.new(re)}
 
         # Now run each of those tests, using Test::Unit's test running logic.   Basically
         # this spoof's the TestCase internal convention of a single object per test, by 
@@ -647,7 +663,8 @@ module Albatross
     def select_nodes(nodes, kwa={})
       kwdef = { :with_feats => nil, :without_feats => nil, :with_groups => nil, :without_groups => nil, 
         :checkin_since => (Time.now.to_f - (3600 + 5*60)), 
-        :white => try_params(:white), :black => try_params(:black) }
+        :white => try_params(:white), :black => try_params(:black),
+        :allow_condor_host => false, :allow_host => false }
       kwa = kwdef.merge(kwa)
 
       to_array(kwa, :with_feats)
@@ -661,6 +678,9 @@ module Albatross
       # subtract the set of nodes that aren't known to the wallaby store:
       s = nodes - store.checkNodeValidity(nodes) 
 
+      s -= [fq_hostname] if not kwa[:allow_host]
+      s -= [try_params(:condor_host, fq_hostname)] if not kwa[:allow_condor_host]
+
       r = []
       s.map {|x| store.getNode(x)}.each do |node|
         checkin = node.last_checkin.to_f / 1000000.0
@@ -670,8 +690,8 @@ module Albatross
         next if (checkin) < kwa[:checkin_since]
 
         # black and white lists
-        next if kwa[:black] and node.name.match(Regexp.new("^"+kwa[:black]+"$"))
-        next if kwa[:white] and not node.name.match(Regexp.new("^"+kwa[:white]+"$"))
+        next if kwa[:black] and node.name.match(Regexp.new(kwa[:black]))
+        next if kwa[:white] and not node.name.match(Regexp.new(kwa[:white]))
 
         if (kwa[:with_groups].length > 0) or (kwa[:without_groups].length > 0) then
           g = node_groups(node).map {|x| x.name}
