@@ -64,6 +64,7 @@ module Albatross
       if not instance_variables.include?('@log') then
         @log = Logger.new(try_params(:log_device, STDOUT))
         @log.level = try_params(:log_level, Logger::INFO)
+        @log.datetime_format = "%Y-%m-%d %H:%M:%S "
       end
       return @log
     end
