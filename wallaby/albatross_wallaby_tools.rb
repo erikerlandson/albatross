@@ -123,6 +123,10 @@ module Albatross
     def fq_hostname
       Socket.gethostbyname(Socket.gethostname).first
     end
+
+    def random_string(len=10)
+      (0...len).map{('a'..'z').to_a[rand(26)]}.join
+    end
   end # module Utils
 
 
@@ -223,7 +227,7 @@ module Albatross
       @starttime = Time.now.to_i
       @pretest_snapshot_taken = false
       log.debug("WallabyUnitTestTools.suite_setup")
-      @tmpdir = Dir.tmpdir + "/awth_" + (0...10).map{('a'..'z').to_a[rand(26)]}.join
+      @tmpdir = Dir.tmpdir + "/awth_" + random_string
       Dir.mkdir(@tmpdir)
       log.info("tmpdir= %s" % [@tmpdir])
       @test_date = Time.now.strftime("%Y/%m/%d_%H:%M:%S")
@@ -291,6 +295,38 @@ module Albatross
         raise if PASSTHROUGH_EXCEPTIONS.include?(e.class)
         return
       end
+    end
+
+    def poll_for_process_completion(procs, kwa={})
+      kwdef = { :interval => 1, :progress_interval => 30 }
+      kwa = kwdef.merge(kwa)
+
+      t0 = Time.now.to_f
+      t = 0
+      tt = 0
+
+      while true
+        sleep(kwa[:interval])
+        t += kwa[:interval]
+        tt += kwa[:interval]
+        if t >= kwa[:progress_interval] then
+          t -= kwa[:progress_interval]
+          log.info("poll_for_process_completion: %g elapsed" % [tt])
+        end
+
+        completed = true
+        procs.each do |pid|
+          begin
+            Process.kill(0, pid)
+            completed = false
+          rescue
+          end
+          break if not completed
+        end
+        break if completed
+      end
+
+      Time.now.to_f - t0
     end
 
     def self.included(base)
@@ -908,6 +944,111 @@ module Albatross
         raise(::Albatross::CondorTools::Exception, "Exceeded max polling time %d" % [kwa[:maxtime]]) if elapsed > kwa[:maxtime]
         nL = n
         tL = tC
+      end
+    end
+
+    def collect_history(kwa={})
+      kwdef = { :nodes => try_params(:condor_host, fq_hostname), :wdir => Dir.tmpdir, :fname => ("%s/history"%[Dir.tmpdir]) }
+      kwa = kwdef.merge(kwa)
+
+      to_array(kwa, :nodes)
+
+      hflist = []
+      kwa[:nodes].length.times do |j|
+        mach = kwa[:nodes][j]
+        hfname = "%s/history%03d" % [kwa[:wdir], j]
+        hflist.push(hfname)
+        cmd = "/usr/sbin/condor_fetchlog %s HISTORY > %s" % [mach, hfname]
+        log.debug("history cmd= %s" % [cmd])
+        system(cmd)
+      end
+
+      cmd = "cat %s > %s" % [hflist.join(" "), kwa[:fname]]
+      log.debug("cat cmd= %s" % [cmd])
+      system(cmd)  
+    end
+
+    def collect_rates(hfname, kwa={})
+      kwdef = { :odir => Dir.tmpdir, :since => 0, :timeslice => 30, :srates => false, :crates => true }
+      kwa = kwdef.merge(kwa)
+
+      hof = "%s/hof_%s.dat" % [kwa[:odir], random_string]
+
+      basecmd = "ptplot -noplot -f %s -since %d -timeslice %d" % [hfname, kwa[:since], kwa[:timeslice]]
+
+      # at first ptplot command, we have no hof file
+      have_hof = false
+
+      if kwa[:srates] then
+        cmd = basecmd
+        if not have_hof then
+          cmd += " -hof-out %s" % [hof]
+          have_hof = true
+          basecmd += " -hof %s" % [hof]
+        end
+        cmd += " -submissions >%s/submissions.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/submissions.dat" % [kwa[:odir]]) do |input|
+          log.info("\nsubmissions:\n%s\n" % [input.read])
+        end
+
+        cmd = basecmd + " -submissions -cum >%s/submissions_cum.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/submissions_cum.dat" % [kwa[:odir]]) do |input|
+          log.info("\nsubmissions cum:\n%s\n" % [input.read])
+        end
+
+        cmd = basecmd + " -submissions -rate >%s/submissions_rate.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/submissions_rate.dat" % [kwa[:odir]]) do |input|
+          log.info("\nsubmissions rate:\n%s\n" % [input.read])
+        end
+
+        cmd = basecmd + " -submissions -cum -rate >%s/submissions_cum_rate.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/submissions_cum_rate.dat" % [kwa[:odir]]) do |input|
+          log.info("\nsubmissions cum rate:\n%s\n" % [input.read])
+        end
+      end
+
+      if kwa[:crates] then
+        cmd = basecmd
+        if not have_hof then
+          cmd += " -hof-out %s" % [hof]
+          have_hof = true
+          basecmd += " -hof %s" % [hof]
+        end
+        cmd += " >%s/completions.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/completions.dat" % [kwa[:odir]]) do |input|
+          log.info("\ncompletions:\n%s\n" % [input.read])
+        end
+
+        cmd = basecmd + " -cum >%s/completions_cum.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/completions_cum.dat" % [kwa[:odir]]) do |input|
+          log.info("\ncompletions cum:\n%s\n" % [input.read])
+        end
+
+        cmd = basecmd + " -rate >%s/completions_rate.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/completions_rate.dat" % [kwa[:odir]]) do |input|
+          log.info("\ncompletions rate:\n%s\n" % [input.read])
+        end
+
+        cmd = basecmd + " -cum -rate >%s/completions_cum_rate.dat" % [kwa[:odir]]
+        log.debug("ptplot cmd= %s" % [cmd])
+        system(cmd)
+        File.open("%s/completions_cum_rate.dat" % [kwa[:odir]]) do |input|
+          log.info("\ncompletions cum rate:\n%s\n" % [input.read])
+        end
       end
     end
 

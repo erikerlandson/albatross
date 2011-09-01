@@ -69,11 +69,6 @@ module Mrg
                 @params[:ndynamic] = v
               end
 
-              @params[:nschedd] = 1
-              opts.on("--nschedd N", Integer, "number of schedulers") do |v|
-                @params[:nschedd] = v
-              end
-
               @params[:nsub] = 1
               opts.on("--nsub N", Integer, "number of submitters: def= %d" % [@params[:nsub]]) do |v|
                 @params[:nsub] = v
@@ -84,7 +79,24 @@ module Mrg
                 @params[:duration] = v
               end
 
-              opts.separator("completion rate testing")
+              opts.separator("\nsubmission rate testing")
+
+              @params[:nschedd] = 1
+              opts.on("--nschedd N", Integer, "number of schedulers") do |v|
+                @params[:nschedd] = v
+              end
+
+              @params[:sustain] = 60
+              opts.on("--sustain N", Integer, "sustain submissions for N sec: def= %d" % [@params[:sustain]]) do |v|
+                @params[:sustain] = v
+              end
+
+              @params[:interval] = 1.0
+              opts.on("--interval X", Float, "submit at interval X sec: def= %3.2f" % [@params[:interval]]) do |v|
+                @params[:interval] = v
+              end
+
+              opts.separator("\ncompletion rate testing")
 
               @params[:njobs] = 1
               opts.on("--njobs N", Integer, "number of jobs for completion-rate: def= %d" % [@params[:njobs]]) do |v|
@@ -159,6 +171,8 @@ module Mrg
             end
 
             def test_01_complete_rate
+              start = Time.now.to_i
+
               schedd_names = [params[:condor_host]]
               cjscmd = "cjs -shell -dir '%s' -duration %d -n %d -sub %d -remote '%s' -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' >'%s/sh_out' 2>'%s/sh_err'" % [@tmpdir, params[:duration], params[:njobs], params[:nsub], schedd_names.first, @tmpdir, @tmpdir]
               log.debug("cjscmd= %s" % [cjscmd])
@@ -169,51 +183,38 @@ module Mrg
               sleep(15)
               poll_for_empty_job_queue(:schedd => schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
 
-              hflist = []
-              (0...schedd_names.length).each do |j|
-                schedd = schedd_names[j]
-                hfname = "%s/cr_history%03d" % [@tmpdir, j]
-                hflist.push(hfname)
-                cmd = "/usr/sbin/condor_fetchlog %s HISTORY > %s" % [schedd, hfname]
-                log.debug("history cmd= %s" % [cmd])
-                system(cmd)
-              end
-
               hfname = "%s/cr_history" % [@tmpdir]
-              cmd = "cat %s > %s" % [hflist.join(" "), hfname]
-              log.debug("cat cmd= %s" % [cmd])
-              system(cmd)
+              collect_history(:nodes => schedd_names, :wdir => @tmpdir, :fname => hfname)
 
-              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d >%s/completions.dat" % [hfname, @starttime, @tmpdir]
-              log.debug("ptplot cmd= %s" % [cmd])
-              system(cmd)
-              File.open("%s/completions.dat" % [@tmpdir]) do |input|
-                log.info("\ncompletions:\n%s\n" % [input.read])
-              end
-
-              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d -cum >%s/completions_cum.dat" % [hfname, @starttime, @tmpdir]
-              log.debug("ptplot cmd= %s" % [cmd])
-              system(cmd)
-              File.open("%s/completions_cum.dat" % [@tmpdir]) do |input|
-                log.info("\ncompletions cum:\n%s\n" % [input.read])
-              end
-
-              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d -rate >%s/completions_rate.dat" % [hfname, @starttime, @tmpdir]
-              log.debug("ptplot cmd= %s" % [cmd])
-              system(cmd)
-              File.open("%s/completions_rate.dat" % [@tmpdir]) do |input|
-                log.info("\ncompletions rate:\n%s\n" % [input.read])
-              end
-
-              cmd = "ptplot -noplot -timeslice 30 -f %s -since %d -cum -rate >%s/completions_cum_rate.dat" % [hfname, @starttime, @tmpdir]
-              log.debug("ptplot cmd= %s" % [cmd])
-              system(cmd)
-              File.open("%s/completions_cum_rate.dat" % [@tmpdir]) do |input|
-                log.info("\ncompletions cum rate:\n%s\n" % [input.read])
-              end
+              collect_rates(hfname, :odir => @tmpdir, :since => start)
             end
 
             def test_02_submit_rate
+              start = Time.now.to_i
+              log.info("spawning %d submit processes..." % [params[:nsub]])
+              submit_procs = []
+              params[:nsub].times do |j|
+                schedd_name = @schedd_names[j % params[:nschedd]]
+                cjscmd = "cjs -shell -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -ss -ss-interval %f -ss-maxtime %d -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' -remote '%s' >'%s/sh_out%03d' 2>'%s/sh_err%03d'" % [@tmpdir, params[:duration], j, params[:interval], params[:sustain], schedd_name, @tmpdir, j, @tmpdir, j]
+                log.debug("cjscmd= %s" % [cjscmd])
+                pid = IO.popen(cjscmd).pid
+                Process.detach(pid)
+                submit_procs.push(pid)
+              end
+
+              log.info("Waiting for %d submission processes to complete..." % [params[:nsub]])
+
+              elapsed = poll_for_process_completion(submit_procs)
+
+              njobs = job_count(:tag => "ScaleTest", :schedd => @schedd_names)
+              log.info("elapsed time= %f  njobs= %d  sustained rate= %f" % [elapsed, njobs, njobs / elapsed])
+
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
+
+              hfname = "%s/sr_history" % [@tmpdir]
+              collect_history(:nodes => @schedd_names, :wdir => @tmpdir, :fname => hfname)
+
+              collect_rates(hfname, :odir => @tmpdir, :since => start, :srates => true, :crates => true)
             end
           end
         
