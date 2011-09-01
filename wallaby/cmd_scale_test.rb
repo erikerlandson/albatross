@@ -209,7 +209,7 @@ module Mrg
               njobs = job_count(:tag => "ScaleTest", :schedd => @schedd_names)
               log.info("elapsed time= %f  njobs= %d  sustained rate= %f" % [elapsed, njobs, njobs / elapsed])
 
-              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800, :remove_jobs => params[:sustain])
 
               hfname = "%s/sr_history" % [@tmpdir]
               collect_history(:nodes => @schedd_names, :wdir => @tmpdir, :fname => hfname)

@@ -855,12 +855,12 @@ module Albatross
 
       if kwa[:schedd].length <= 0 then
         log.debug("remove_jobs: cmd= \"%s\"" % [cmd])
-        IO.popen(cmd)
+        system(cmd)
       else
         kwa[:schedd].each do |name|
           scmd = cmd + (" -name '%s'" % [name])
           log.debug("remove_jobs: cmd= \"%s\"" % [scmd])
-          IO.popen(scmd)
+          system(scmd)
         end
       end
     end
@@ -904,7 +904,7 @@ module Albatross
     end
 
     def poll_for_empty_job_queue(kwa={})
-      kwdef = { :interval => 30, :maxtime => 300, :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => []}
+      kwdef = { :interval => 30, :maxtime => 300, :cluster => nil, :tag => nil, :tagvar => "AlbatrossTestTag", :schedd => [], :remove_jobs => nil}
       kwa = kwdef.merge(kwa)
 
       begin
@@ -915,6 +915,7 @@ module Albatross
 
       log.debug("poll_for_empty_job_queue: initial job count= %d" % [n0])
 
+      removed = false
       t0 = Time.now.to_i
       tL = t0
       nL = n0
@@ -943,6 +944,11 @@ module Albatross
         log.info("elapsed= %d sec   interval= %d sec   jobs= %d   rate= %f  cum-rate= %f:\n" % [Integer(elapsed), Integer(elapsedI), n, rateI, rate])
         break if n <= 0
         raise(::Albatross::CondorTools::Exception, "Exceeded max polling time %d" % [kwa[:maxtime]]) if elapsed > kwa[:maxtime]
+        if kwa[:remove_jobs] and (elapsed >= kwa[:remove_jobs]) and not removed then
+          log.info("removing jobs from queues at time %d" % [tC])
+          remove_jobs(kwa)
+          removed = true
+        end
         nL = n
         tL = tC
       end
