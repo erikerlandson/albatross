@@ -173,18 +173,28 @@ module Mrg
             def test_01_complete_rate
               start = Time.now.to_i
 
-              schedd_names = [params[:condor_host]]
-              cjscmd = "cjs -shell -dir '%s' -duration %d -n %d -sub %d -remote '%s' -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' >'%s/sh_out' 2>'%s/sh_err'" % [@tmpdir, params[:duration], params[:njobs], params[:nsub], schedd_names.first, @tmpdir, @tmpdir]
-              log.debug("cjscmd= %s" % [cjscmd])
+              jobs_per = 1+Integer(Float(params[:njobs])/Float(@schedd_names.length))
+              pidlist = []
+              j = 0
+              @schedd_names.each do |schedd|
+                cjscmd = "cjs -shell -dir '%s' -duration %d -n %d -sub %d -remote '%s' -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' >'%s/sh_cr_out%03d' 2>'%s/sh_cr_err%03d'" % [@tmpdir, params[:duration], jobs_per, params[:nsub], schedd, @tmpdir, j, @tmpdir, j]
 
-              system(cjscmd)
+                log.debug("cjscmd= %s" % [cjscmd])
+                pid = IO.popen(cjscmd).pid
+                Process.detach(pid)
+                pidlist.push(pid)
+                j += 1
+              end
+
+              log.info("Waiting for %d submission processes to complete..." % [pidlist.length])
+              poll_for_process_completion(pidlist)
 
               log.info("pausing for jobs to queue up")
               sleep(15)
-              poll_for_empty_job_queue(:schedd => schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
 
               hfname = "%s/cr_history" % [@tmpdir]
-              collect_history(:nodes => schedd_names, :wdir => @tmpdir, :fname => hfname)
+              collect_history(:nodes => @schedd_names, :wdir => @tmpdir, :fname => hfname)
 
               collect_rates(hfname, :odir => @tmpdir, :since => start)
             end
