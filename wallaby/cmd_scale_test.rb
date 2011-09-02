@@ -79,17 +79,17 @@ module Mrg
                 @params[:duration] = v
               end
 
-              opts.separator("\nsubmission rate testing")
-
               @params[:nschedd] = 1
               opts.on("--nschedd N", Integer, "number of schedulers") do |v|
                 @params[:nschedd] = v
               end
 
               @params[:sustain] = 60
-              opts.on("--sustain N", Integer, "sustain submissions for N sec: def= %d" % [@params[:sustain]]) do |v|
+              opts.on("--sustain N", Integer, "sustain submissions and or completions for N sec: def= %d" % [@params[:sustain]]) do |v|
                 @params[:sustain] = v
               end
+
+              opts.separator("\nsubmission rate testing")
 
               @params[:interval] = 1.0
               opts.on("--interval X", Float, "submit at interval X sec: def= %3.2f" % [@params[:interval]]) do |v|
@@ -191,7 +191,7 @@ module Mrg
 
               log.info("pausing for jobs to queue up")
               sleep(15)
-              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800)
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 120+params[:sustain], :remove_jobs => params[:sustain])
 
               hfname = "%s/cr_history" % [@tmpdir]
               collect_history(:nodes => @schedd_names, :wdir => @tmpdir, :fname => hfname)
@@ -219,7 +219,7 @@ module Mrg
               njobs = job_count(:tag => "ScaleTest", :schedd => @schedd_names)
               log.info("elapsed time= %f  njobs= %d  sustained rate= %f" % [elapsed, njobs, njobs / elapsed])
 
-              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 1800, :remove_jobs => params[:sustain])
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 120+params[:sustain], :remove_jobs => params[:sustain])
 
               hfname = "%s/sr_history" % [@tmpdir]
               collect_history(:nodes => @schedd_names, :wdir => @tmpdir, :fname => hfname)

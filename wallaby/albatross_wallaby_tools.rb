@@ -979,21 +979,12 @@ module Albatross
       kwdef = { :odir => Dir.tmpdir, :since => 0, :timeslice => 30, :srates => false, :crates => true }
       kwa = kwdef.merge(kwa)
 
-      hof = "%s/hof_%s.dat" % [kwa[:odir], random_string]
-
-      basecmd = "ptplot -noplot -f %s -since %d -timeslice %d" % [hfname, kwa[:since], kwa[:timeslice]]
-
-      # at first ptplot command, we have no hof file
-      have_hof = false
-
       if kwa[:srates] then
-        cmd = basecmd
-        if not have_hof then
-          cmd += " -hof-out %s" % [hof]
-          have_hof = true
-          basecmd += " -hof %s" % [hof]
-        end
+        hof = "%s/hof_%s.dat" % [kwa[:odir], random_string]
+        basecmd = "ptplot -noplot -submissions -f %s -since %d -timeslice %d" % [hfname, kwa[:since], kwa[:timeslice]]
+        cmd = basecmd + " -hof-out %s" % [hof]
         cmd += " -submissions >%s/submissions.dat" % [kwa[:odir]]
+        basecmd += " -hof %s" % [hof]
         log.debug("ptplot cmd= %s" % [cmd])
         system(cmd)
         File.open("%s/submissions.dat" % [kwa[:odir]]) do |input|
@@ -1023,13 +1014,11 @@ module Albatross
       end
 
       if kwa[:crates] then
-        cmd = basecmd
-        if not have_hof then
-          cmd += " -hof-out %s" % [hof]
-          have_hof = true
-          basecmd += " -hof %s" % [hof]
-        end
+        hof = "%s/hof_%s.dat" % [kwa[:odir], random_string]
+        basecmd = "ptplot -noplot -f %s -since %d -timeslice %d" % [hfname, kwa[:since], kwa[:timeslice]]
+        cmd = basecmd + " -hof-out %s" % [hof]
         cmd += " >%s/completions.dat" % [kwa[:odir]]
+        basecmd += " -hof %s" % [hof]
         log.debug("ptplot cmd= %s" % [cmd])
         system(cmd)
         File.open("%s/completions.dat" % [kwa[:odir]]) do |input|
