@@ -96,6 +96,11 @@ module Mrg
                 @params[:interval] = v
               end
 
+              @params[:maxinterval] = nil
+              opts.on("--maxinterval X", Float, "maximum submit interval X sec: if given submit interval is random between [interval, maxinterval]: def= none") do |v|
+                @params[:maxinterval] = v
+              end
+
               opts.separator("\ncompletion rate testing")
 
               @params[:njobs] = 1
@@ -205,7 +210,9 @@ module Mrg
               submit_procs = []
               params[:nsub].times do |j|
                 schedd_name = @schedd_names[j % params[:nschedd]]
-                cjscmd = "cjs -shell -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -ss -ss-interval %f -ss-maxtime %d -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' -remote '%s' >'%s/sh_out%03d' 2>'%s/sh_err%03d'" % [@tmpdir, params[:duration], j, params[:interval], params[:sustain], schedd_name, @tmpdir, j, @tmpdir, j]
+                cjscmd = "cjs -shell -dir '%s' -duration %d -xgroups U%03d 1 -reqs 'stringListMember(\"GridScaleTest\", WallabyGroups) && (TARGET.Arch =!= UNDEFINED) && (TARGET.OpSys =!= UNDEFINED) && (TARGET.Disk >= 0) && (TARGET.Memory >= 0) && (TARGET.FileSystemDomain =!= UNDEFINED)' -ss -ss-interval %f" % [@tmpdir, params[:duration], j, params[:interval]]
+                cjscmd += " -ss-maxinterval %f" % [params[:maxinterval]] if params[:maxinterval]
+                cjscmd += " -ss-maxtime %d -append '+AlbatrossTestTag=\"ScaleTest\"' -append '+LeaveJobInQueue=False' -remote '%s' >'%s/sh_out%03d' 2>'%s/sh_err%03d'" % [params[:sustain], schedd_name, @tmpdir, j, @tmpdir, j]
                 log.debug("cjscmd= %s" % [cjscmd])
                 pid = IO.popen(cjscmd).pid
                 Process.detach(pid)
