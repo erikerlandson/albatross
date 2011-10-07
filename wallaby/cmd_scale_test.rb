@@ -106,6 +106,11 @@ module Mrg
                 @params[:maxinterval] = v
               end
 
+              @params[:sustain_completion] = 60
+              opts.on("--sustain-completion N", Integer, "sustain completions for N sec after submissions finish: def= %d" % [@params[:sustain_completion]]) do |v|
+                @params[:sustain_completion] = v
+              end
+
               opts.separator("\ncompletion rate testing")
 
               @params[:njobs] = 1
@@ -235,7 +240,7 @@ module Mrg
               njobs = job_count(:tag => "ScaleTest", :schedd => @schedd_names)
               log.info("elapsed time= %f  njobs= %d  sustained rate= %f" % [elapsed, njobs, njobs / elapsed])
 
-              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 120+params[:sustain], :remove_jobs => params[:sustain])
+              poll_for_empty_job_queue(:schedd => @schedd_names, :tag => "ScaleTest", :interval => 60, :maxtime => 120+params[:sustain_completion], :remove_jobs => params[:sustain_completion])
 
               hfname = "%s/sr_history" % [@tmpdir]
               collect_history(:nodes => @schedd_names, :wdir => @tmpdir, :fname => hfname)
