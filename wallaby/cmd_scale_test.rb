@@ -176,7 +176,7 @@ module Mrg
               set_node_features(params[:condor_host], ['GridScaleTestFetch', 'GridScaleTestNeg', 'GridScaleTestNoPreempt', 'GridScaleTestPorts'], :op => 'insert')
 
               take_snapshot("grid_scale_test_%s" % [@test_date])
-              store.activateConfiguration(_timeout=60)
+              store.activateConfiguration()
               
               poll_for_slots(params[:ntarget]*@pslots, :group => 'GridScaleTest', :interval => 30, :maxtime => 300, :expected => @target_nodes)
             end

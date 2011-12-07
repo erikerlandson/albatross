@@ -168,7 +168,7 @@ class condor_unit_test(unittest.TestCase):
             self.load_snapshot(self.snapshot)
 
             # Activate restored config
-            result = self.config_store.activateConfiguration(_timeout=600)
+            result = self.config_store.activateConfiguration()
             if result.status != 0:
                 sys.stderr.write("Failed to activate restored configuration %s: (%s, %s)\n" % (self.snapshot, result.status, result.text))
                 raise Exception(result.text)

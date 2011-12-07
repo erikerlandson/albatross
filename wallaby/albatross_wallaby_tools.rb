@@ -245,7 +245,7 @@ module Albatross
       log.debug("WallabyUnitTestTools.suite_teardown")
       if try_params(:restore, true) and try_params(:pretest, true) and @pretest_snapshot_taken then
         load_snapshot(@pretest_snapshot)
-        store.activateConfiguration(_timeout=60)
+        store.activateConfiguration()
       end
     end
 

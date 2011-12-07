@@ -55,7 +55,7 @@ class grid_scale_test_micro(utcondor.condor_unit_test):
         self.take_snapshot("grid_scale_%s_micro_test" % (self.testdate))
 
         # Activate new config
-        result = self.config_store.activateConfiguration(_timeout=600)
+        result = self.config_store.activateConfiguration()
         if result.status != 0:
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
@@ -137,7 +137,7 @@ class grid_scale_test_small(utcondor.condor_unit_test):
         self.take_snapshot("grid_scale_%s_small_test" % (self.testdate))
 
         # Activate new config
-        result = self.config_store.activateConfiguration(_timeout=600)
+        result = self.config_store.activateConfiguration()
         if result.status != 0:
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
@@ -253,7 +253,7 @@ class grid_scale_test_medium(utcondor.condor_unit_test):
         self.take_snapshot("grid_scale_%s_medium_test" % (self.testdate))
 
         # Activate new config
-        result = self.config_store.activateConfiguration(_timeout=600)
+        result = self.config_store.activateConfiguration()
         if result.status != 0:
             raise Exception("Failed to activate test configuration: (%s, %s)" % (result.status, result.text))
 
